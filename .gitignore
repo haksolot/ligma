@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+
+# Personalities and Instructions
+# We ignore everything by default, except the 'default' files and directory structure
+personalities/*
+!personalities/default.txt
+
+instructions/*
+# Ignore the state file which tracks active instructions
+instructions/instructions_state.json
