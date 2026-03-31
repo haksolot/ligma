@@ -1,202 +1,246 @@
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands
 from config import CREATOR_ID
+
+# --- MODALS ---
+
+class CreateModal(ui.Modal):
+    def __init__(self, title, callback_func, is_instruction=False):
+        super().__init__(title=title)
+        self.callback_func = callback_func
+        
+        self.name_input = ui.TextInput(
+            label="Name",
+            placeholder="Enter a unique name...",
+            min_length=2,
+            max_length=50
+        )
+        self.content_input = ui.TextInput(
+            label="Content / Prompt",
+            style=discord.TextStyle.paragraph,
+            placeholder="Enter the detailed content here...",
+            min_length=5,
+            max_length=2000
+        )
+        self.add_item(self.name_input)
+        self.add_item(self.content_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.callback_func(interaction, self.name_input.value, self.content_input.value)
+
+# --- VIEWS ---
+
+class PersonalityView(ui.View):
+    def __init__(self, bot, cog):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.cog = cog
+
+    @ui.button(label="View Current", style=discord.ButtonStyle.primary)
+    async def view_current(self, interaction: discord.Interaction, button: ui.Button):
+        name = self.bot.ai.personality.current_name
+        content = self.bot.ai.personality.current_personality
+        await interaction.response.send_message(f"### Current Personality: **{name}**\n>>> {content}", ephemeral=True)
+
+    @ui.button(label="Switch", style=discord.ButtonStyle.secondary)
+    async def switch_personality(self, interaction: discord.Interaction, button: ui.Button):
+        options = [
+            discord.SelectOption(label=p, value=p, default=(p == self.bot.ai.personality.current_name))
+            for p in self.bot.ai.personality.list_all()
+        ][:25]
+        
+        select = ui.Select(placeholder="Choose a personality...", options=options)
+        
+        async def select_callback(inter: discord.Interaction):
+            await inter.response.defer(ephemeral=True)
+            name = select.values[0]
+            self.bot.ai.personality.load(name)
+            self.bot.ai.memory.clear(str(inter.channel_id))
+            await inter.followup.send(f"Switched to personality: **{name}**", ephemeral=True)
+            
+        select.callback = select_callback
+        view = ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Select a new personality:", view=view, ephemeral=True)
+
+    @ui.button(label="Create/Update", style=discord.ButtonStyle.success)
+    async def create_new(self, interaction: discord.Interaction, button: ui.Button):
+        async def callback(inter, name, content):
+            await inter.response.defer(ephemeral=True)
+            self.bot.ai.personality.save(name, content)
+            await inter.followup.send(f"Personality **{name}** saved/updated!", ephemeral=True)
+
+        await interaction.response.send_modal(CreateModal("Create Personality", callback))
+
+    @ui.button(label="Delete", style=discord.ButtonStyle.danger)
+    async def delete_personality(self, interaction: discord.Interaction, button: ui.Button):
+        options = [
+            discord.SelectOption(label=p, value=p)
+            for p in self.bot.ai.personality.list_all() if p != "default"
+        ][:25]
+        
+        if not options:
+            await interaction.response.send_message("No custom personalities to delete.", ephemeral=True)
+            return
+
+        select = ui.Select(placeholder="Select personality to delete...", options=options)
+        
+        async def delete_callback(inter: discord.Interaction):
+            await inter.response.defer(ephemeral=True)
+            name = select.values[0]
+            if self.bot.ai.personality.delete(name):
+                await inter.followup.send(f"Personality **{name}** deleted.", ephemeral=True)
+            else:
+                await inter.followup.send("Failed to delete.", ephemeral=True)
+            
+        select.callback = delete_callback
+        view = ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Select a personality to **permanently delete**:", view=view, ephemeral=True)
+
+class InstructionView(ui.View):
+    def __init__(self, bot, cog):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.cog = cog
+
+    @ui.button(label="List & Toggle", style=discord.ButtonStyle.primary)
+    async def list_toggle(self, interaction: discord.Interaction, button: ui.Button):
+        instructions = self.bot.ai.instructions.list_all()
+        if not instructions:
+            await interaction.response.send_message("No instructions found.", ephemeral=True)
+            return
+
+        options = [
+            discord.SelectOption(
+                label=name, 
+                value=name, 
+                description="Active" if active else "Inactive",
+                emoji="✅" if active else "❌"
+            )
+            for name, active in instructions
+        ][:25]
+        
+        select = ui.Select(
+            placeholder="Select instruction to TOGGLE state...",
+            options=options
+        )
+        
+        async def toggle_callback(inter: discord.Interaction):
+            await inter.response.defer(ephemeral=True)
+            name = select.values[0]
+            # Find current status to flip it
+            current_status = next(active for n, active in instructions if n == name)
+            new_status = not current_status
+            
+            if self.bot.ai.instructions.toggle(name, new_status):
+                status_text = "activated" if new_status else "deactivated"
+                await inter.followup.send(f"Instruction **{name}** {status_text}.", ephemeral=True)
+            else:
+                await inter.followup.send("Error toggling instruction.", ephemeral=True)
+            
+        select.callback = toggle_callback
+        view = ui.View()
+        view.add_item(select)
+        
+        status_list = "\n".join([f"- {'✅' if a else '❌'} **{n}**" for n, a in instructions])
+        await interaction.response.send_message(f"### Current Instructions:\n{status_list}\n\nSelect one to flip its state:", view=view, ephemeral=True)
+
+    @ui.button(label="Create/Update", style=discord.ButtonStyle.success)
+    async def create_new(self, interaction: discord.Interaction, button: ui.Button):
+        async def callback(inter, name, content):
+            await inter.response.defer(ephemeral=True)
+            self.bot.ai.instructions.create_or_update(name, content)
+            await inter.followup.send(f"Instruction **{name}** saved/updated.", ephemeral=True)
+
+        await interaction.response.send_modal(CreateModal("Create Instruction", callback, True))
+
+    @ui.button(label="Delete", style=discord.ButtonStyle.danger)
+    async def delete_instr(self, interaction: discord.Interaction, button: ui.Button):
+        instructions = self.bot.ai.instructions.list_all()
+        options = [discord.SelectOption(label=name, value=name) for name, active in instructions][:25]
+        
+        if not options:
+            await interaction.response.send_message("No instructions to delete.", ephemeral=True)
+            return
+
+        select = ui.Select(placeholder="Select instruction to delete...", options=options)
+        
+        async def delete_callback(inter: discord.Interaction):
+            await inter.response.defer(ephemeral=True)
+            name = select.values[0]
+            if self.bot.ai.instructions.delete(name):
+                await inter.followup.send(f"Instruction **{name}** deleted.", ephemeral=True)
+            else:
+                await inter.followup.send("Failed to delete.", ephemeral=True)
+            
+        select.callback = delete_callback
+        view = ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Select an instruction to **permanently delete**:", view=view, ephemeral=True)
+
+# --- COG ---
 
 class AICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def is_creator(self, interaction: discord.Interaction) -> bool:
-        """Check if the user is the authorized creator."""
         return interaction.user.id == CREATOR_ID
 
-    # --- AUTOCOMPLETION ---
+    # --- STANDALONE COMMANDS ---
+
     async def model_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.is_creator(interaction):
-            return []
+        if not self.is_creator(interaction): return []
         try:
             models = await self.bot.ai.list_models()
-            return [
-                app_commands.Choice(name=m, value=m)
-                for m in models if current.lower() in m.lower()
-            ][:25]
-        except:
-            return []
-
-    async def personality_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.is_creator(interaction):
-            return []
-        try:
-            personalities = self.bot.ai.personality.list_all()
-            return [
-                app_commands.Choice(name=p, value=p)
-                for p in personalities if current.lower() in p.lower()
-            ][:25]
-        except:
-            return []
-
-    async def instruction_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.is_creator(interaction):
-            return []
-        try:
-            instructions = self.bot.ai.instructions.list_all()
-            return [
-                app_commands.Choice(name=name, value=name)
-                for name, active in instructions if current.lower() in name.lower()
-            ][:25]
-        except:
-            return []
+            return [app_commands.Choice(name=m, value=m) for m in models if current.lower() in m.lower()][:25]
+        except: return []
 
     @app_commands.command(name="model", description="Change the Ollama model used (Creator Only).")
     @app_commands.autocomplete(model_name=model_autocomplete)
     async def change_model(self, interaction: discord.Interaction, model_name: str):
         if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
-            
-        try:
-            self.bot.ai.change_model(model_name)
-            self.bot.ai.memory.clear(str(interaction.channel_id))
-            await interaction.response.send_message(f"**Brain replaced!** I am now using `{model_name}`.\n*(Memory reset).*", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error changing model: {e}", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        self.bot.ai.change_model(model_name)
+        self.bot.ai.memory.clear(str(interaction.channel_id))
+        await interaction.followup.send(f"**Brain replaced!** Using `{model_name}`.", ephemeral=True)
 
-    @app_commands.command(name="reset", description="Clear the memory of this channel (Creator Only).")
+    @app_commands.command(name="reset", description="Clear memory of this channel (Creator Only).")
     async def reset_memory(self, interaction: discord.Interaction):
         if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
-            
-        try:
-            self.bot.ai.memory.clear(str(interaction.channel_id))
-            await interaction.response.send_message("**Memory formatted!** Starting from scratch here.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error resetting memory: {e}", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        self.bot.ai.memory.clear(str(interaction.channel_id))
+        await interaction.followup.send("**Memory formatted!**", ephemeral=True)
 
-    # --- PERSONALITY GROUP ---
-    personality_group = app_commands.Group(name="personality", description="Manage bot personality.")
+    # --- CONSOLIDATED COMMANDS ---
 
-    @personality_group.command(name="view", description="Show current personality (Creator Only).")
-    async def view_personality(self, interaction: discord.Interaction):
+    @app_commands.command(name="personality", description="Open the Personality Management dashboard.")
+    async def manage_personality(self, interaction: discord.Interaction):
         if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
-        
-        try:
-            name = self.bot.ai.personality.current_name
-            content = self.bot.ai.personality.current_personality
-            await interaction.response.send_message(f"Current personality: **{name}**\n>>> {content}", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error viewing personality: {e}", ephemeral=True)
+        await interaction.response.send_message(
+            "## 🎭 Personality Management\nSelect an action below to view, switch, or modify personalities.",
+            view=PersonalityView(self.bot, self),
+            ephemeral=True
+        )
 
-    @personality_group.command(name="select", description="Switch personality from library (Creator Only).")
-    @app_commands.autocomplete(name=personality_autocomplete)
-    async def select_personality(self, interaction: discord.Interaction, name: str):
+    @app_commands.command(name="instructions", description="Open the Global Instructions dashboard.")
+    async def manage_instructions(self, interaction: discord.Interaction):
         if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
-        
-        try:
-            self.bot.ai.personality.load(name)
-            self.bot.ai.memory.clear(str(interaction.channel_id))
-            await interaction.response.send_message(f"Switched to personality: **{name}**", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Failed to load personality: {e}", ephemeral=True)
-
-    @personality_group.command(name="create", description="Save current or create new personality (Creator Only).")
-    async def create_personality(self, interaction: discord.Interaction, name: str, content: str):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            self.bot.ai.personality.save(name, content)
-            await interaction.response.send_message(f"Personality **{name}** saved/updated!", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error saving personality: {e}", ephemeral=True)
-
-    @personality_group.command(name="delete", description="Delete personality from library (Creator Only).")
-    @app_commands.autocomplete(name=personality_autocomplete)
-    async def delete_personality(self, interaction: discord.Interaction, name: str):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            if self.bot.ai.personality.delete(name):
-                await interaction.response.send_message(f"Personality **{name}** deleted.", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"Could not delete **{name}** (it might not exist or is protected).", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error deleting personality: {e}", ephemeral=True)
-
-    # --- INSTRUCTION GROUP ---
-    instruction_group = app_commands.Group(name="instructions", description="Manage global instructions.")
-
-    @instruction_group.command(name="list", description="List all instructions and their status (Creator Only).")
-    async def list_instructions(self, interaction: discord.Interaction):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            instructions = self.bot.ai.instructions.list_all()
-            if not instructions:
-                await interaction.response.send_message("No instructions found.", ephemeral=True)
-                return
-                
-            lines = []
-            for name, active in instructions:
-                status = "✅ Active" if active else "❌ Inactive"
-                lines.append(f"- **{name}**: {status}")
-            
-            await interaction.response.send_message("### Global Instructions:\n" + "\n".join(lines), ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error listing instructions: {e}", ephemeral=True)
-
-    @instruction_group.command(name="create", description="Create or update an instruction (Creator Only).")
-    async def create_instruction(self, interaction: discord.Interaction, name: str, content: str):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            self.bot.ai.instructions.create_or_update(name, content)
-            await interaction.response.send_message(f"Instruction **{name}** saved/updated.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error saving instruction: {e}", ephemeral=True)
-
-    @instruction_group.command(name="toggle", description="Activate or deactivate an instruction (Creator Only).")
-    @app_commands.autocomplete(name=instruction_autocomplete)
-    async def toggle_instruction(self, interaction: discord.Interaction, name: str, active: bool):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            if self.bot.ai.instructions.toggle(name, active):
-                status = "activated" if active else "deactivated"
-                await interaction.response.send_message(f"Instruction **{name}** {status}.", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"Instruction **{name}** not found.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error toggling instruction: {e}", ephemeral=True)
-
-    @instruction_group.command(name="delete", description="Delete an instruction (Creator Only).")
-    @app_commands.autocomplete(name=instruction_autocomplete)
-    async def delete_instruction(self, interaction: discord.Interaction, name: str):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
-            return
-        
-        try:
-            if self.bot.ai.instructions.delete(name):
-                await interaction.response.send_message(f"Instruction **{name}** deleted.", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"Instruction **{name}** not found.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error deleting instruction: {e}", ephemeral=True)
+        await interaction.response.send_message(
+            "## 📜 Global Instructions\nManage the rules that all personalities must follow.",
+            view=InstructionView(self.bot, self),
+            ephemeral=True
+        )
 
 async def setup(bot):
     await bot.add_cog(AICog(bot))

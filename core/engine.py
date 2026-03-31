@@ -1,12 +1,13 @@
 import ollama
+from config import DEFAULT_MODEL, MEMORY_LIMIT
 from .memory import MemoryManager
 from .personality import PersonalityManager
 from .instructions import InstructionManager
 
 class AIEngine:
-    def __init__(self, default_model="llama3.2:3b"):
+    def __init__(self, default_model=DEFAULT_MODEL):
         self.current_model = default_model
-        self.memory = MemoryManager()
+        self.memory = MemoryManager(default_model=default_model, limit=MEMORY_LIMIT)
         self.personality = PersonalityManager()
         self.instructions = InstructionManager()
         self.client = ollama.AsyncClient()
@@ -43,3 +44,4 @@ class AIEngine:
 
     def change_model(self, new_model):
         self.current_model = new_model
+        self.memory.default_model = new_model

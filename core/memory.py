@@ -1,10 +1,11 @@
 import ollama
 
 class MemoryManager:
-    def __init__(self, limit=10):
+    def __init__(self, default_model="llama3.2:3b", limit=10):
         self.history = {}  # {channel_id: [messages]}
         self.summaries = {}  # {channel_id: "summary"}
         self.limit = limit
+        self.default_model = default_model
         self.client = ollama.AsyncClient()
 
     async def add_message(self, channel_id, role, content):
@@ -47,7 +48,7 @@ class MemoryManager:
             Instruction: Make an extremely concise summary (max 2 sentences) of this information.
             """
             
-            response = await self.client.chat(model="llama3.2:1b", messages=[
+            response = await self.client.chat(model=self.default_model, messages=[
                 {'role': 'system', 'content': 'You are an expert in raw text synthesis.'},
                 {'role': 'user', 'content': prompt}
             ])
