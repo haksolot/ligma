@@ -20,3 +20,6 @@ DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'llama3.2:3b')
 # --- CORE LOGIC ---
 MEMORY_LIMIT = int(os.getenv('MEMORY_LIMIT', 6))
 PERSONALITY_FILE = "personality.txt"
+
+# --- GIFS ---
+GIPHY_API_KEY = os.getenv('GIPHY_API_KEY', '')

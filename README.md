@@ -54,6 +54,7 @@ DISCORD_TOKEN=your_token_here
 CREATOR_ID=your_discord_id
 DEFAULT_MODEL=llama3.2:3b
 MEMORY_LIMIT=10
+GIPHY_API_KEY=your_giphy_key_here
 ```
 
 ### 4. Execution
@@ -71,6 +72,7 @@ uv run run.py
 | `/reset` | Volatile memory purge and context summary reset for the current channel. |
 | `/personality [view\|select\|create\|delete]` | Real-time management of the agent's behavioral profile. |
 | `/instructions [list\|create\|toggle\|delete]` | Global management of persistent system instructions. |
+| **GIF Support** | Automatic GIF injection via `[GIF: query]` syntax in LLM responses (Giphy API). |
 
 ---
 

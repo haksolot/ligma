@@ -2,13 +2,14 @@ import discord
 import re
 from discord.ext import commands
 from platforms.discord.context import DiscordContextFetcher
+from core.utils.gifs import GiphyFetcher
 
 class ChatCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def _process_mentions(self, content, channel):
-        """Replaces @username or @Display Name with <@ID> if the user exists in the channel."""
+        # ... (same logic as before)
         processed_content = content
         
         # In a guild, we have access to all members if intents are correct
@@ -67,15 +68,30 @@ class ChatCog(commands.Cog):
                     # 4. Save response
                     await self.bot.ai.memory.add_message(channel_id, "assistant", response)
 
-                    # 5. Post-process mentions in response
+                    # 5. Extract GIF query if present
+                    gif_query = None
+                    gif_match = re.search(r'\[GIF: (.*?)\]', response)
+                    if gif_match:
+                        gif_query = gif_match.group(1)
+                        # Remove the tag from response for cleaner message
+                        response = response.replace(gif_match.group(0), "").strip()
+
+                    # 6. Post-process mentions in response
                     response = self._process_mentions(response, message.channel)
 
-                    # 6. Split and send if too long
-                    if len(response) > 2000:
-                        for i in range(0, len(response), 2000):
-                            await message.channel.send(response[i:i+2000])
-                    else:
-                        await message.channel.send(response)
+                    # 7. Split and send if too long
+                    if response: # Might be empty if only a GIF was requested
+                        if len(response) > 2000:
+                            for i in range(0, len(response), 2000):
+                                await message.channel.send(response[i:i+2000])
+                        else:
+                            await message.channel.send(response)
+
+                    # 8. Send GIF if found
+                    if gif_query:
+                        gif_url = await GiphyFetcher.get_gif_url(gif_query)
+                        if gif_url:
+                            await message.channel.send(gif_url)
 
                 except Exception as e:
                     await message.channel.send(f"Oops, system error: {e}")

@@ -38,13 +38,16 @@ class AIEngine:
             if extra_context:
                 system_prompt += f"\n\n{extra_context}"
             
-            # Crucial meta-instruction for Discord interactions
+            # Crucial meta-instruction for Discord interactions    
             system_prompt += """
-### INTERACTION RULES:
-- If you want to mention or ping someone, use the syntax <@USER_ID>.
-- Be aware of who is in the channel using the member list provided above.
+### DISCORD PROTOCOL (STRICT):
+1. **PINGING**: Use <@USER_ID> syntax only.
+2. **GIFS**: If you want to show a GIF, you MUST append `[GIF: keywords]` at the end of your message.
+   - Example User: "Show me a cat."
+   - Example Assistant: "Here is a cute cat! [GIF: cute cat]"
+   - NEVER say "Here is a GIF" without adding the `[GIF: ...]` tag.
+   - The tag MUST be in brackets: [GIF: your search query]
 """
-
             # Retrieve memory and format context
             full_context = await self.memory.get_context(channel_id, system_prompt, user_message)
             
