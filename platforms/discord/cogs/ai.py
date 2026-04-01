@@ -57,6 +57,7 @@ class PersonalityView(ui.View):
             name = select.values[0]
             self.bot.ai.personality.load(name)
             self.bot.ai.memory.clear(str(inter.channel_id))
+            await self.bot.update_presence()
             await inter.followup.send(f"Switched to personality: **{name}**", ephemeral=True)
             
         select.callback = select_callback
@@ -206,6 +207,7 @@ class AICog(commands.Cog):
             return
         self.bot.ai.change_model(model_name)
         self.bot.ai.memory.clear(str(interaction.channel_id))
+        await self.bot.update_presence()
         await interaction.followup.send(f"**Brain replaced!** Using `{model_name}`.", ephemeral=True)
 
     @app_commands.command(name="reset", description="Clear memory of this channel (Creator Only).")
