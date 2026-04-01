@@ -130,8 +130,12 @@ class ChatCog(commands.Cog):
         final_text = re.sub(r'^\(ID: \d+\)\s*', '', final_text)
 
         # CHECK FOR SILENCE REQUEST
-        if "[IGNORE]" in final_text.upper() and len(final_text) < 20:
-            return None, None, None
+        if "[IGNORE]" in final_text.upper():
+            # Strip the tag
+            final_text = re.sub(r'\[IGNORE\]', '', final_text, flags=re.IGNORECASE).strip()
+            # If nothing left, stay silent
+            if not final_text:
+                return None, None, None
 
         # Add indicators if performed
         indicators = []
