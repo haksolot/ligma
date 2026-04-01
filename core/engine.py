@@ -59,6 +59,7 @@ class AIEngine:
                 "- You are a participant in a Discord conversation. Respond naturally and concisely.\n"
                 "- DO NOT speak for other users or imitate them in your response.\n"
                 "- DO NOT start a dialogue with yourself. Provide only YOUR response.\n"
+                "- DO NOT include any ID prefix like '(ID: ...)' in your output. These are for your reference only.\n"
                 "- ALWAYS accompany technical tags (like [SEARCH] or [READ]) with a brief natural sentence for the user (e.g., 'Let me look that up for you...').\n"
                 "- Focus on the most recent context while keeping in mind the history provided above."
             )
