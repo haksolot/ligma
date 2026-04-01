@@ -21,8 +21,8 @@ class AIEngine:
             print(f"[AI Engine] Could not list models: {e}")
             return []
 
-    async def chat(self, channel_id, user_message, extra_context=""):
-        """Sends a chat request to Ollama with optional extra context."""
+    async def chat(self, channel_id, user_message, extra_context="", bot_identity=""):
+        """Sends a chat request to Ollama with optional extra context and identity."""
         try:
             # Prepare System Prompt: Personality + Active Instructions
             active_instructions = self.instructions.get_active_content()
@@ -30,6 +30,10 @@ class AIEngine:
             # Core personality
             system_prompt = f"### YOUR CORE PERSONALITY:\n{self.personality.current_personality}"
             
+            # Identity injection
+            if bot_identity:
+                system_prompt += f"\n\n### YOUR IDENTITY:\n{bot_identity}"
+
             # Global instructions
             if active_instructions:
                 system_prompt += f"\n\n### MANDATORY INSTRUCTIONS TO FOLLOW:\n{active_instructions}"
