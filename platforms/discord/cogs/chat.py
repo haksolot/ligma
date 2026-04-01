@@ -50,7 +50,7 @@ class ChatCog(commands.Cog):
 
         return pattern.sub(sub_func, content)
 
-    async def get_ai_response(self, channel, author, content, trigger_message=None):
+    async def get_ai_response(self, channel, author, content, trigger_message=None, reaction_info=None):
         """
         Core logic to get AI response, handle skills, and update memory.
         Returns (final_text, target_reply_msg, gif_url)
@@ -60,14 +60,27 @@ class ChatCog(commands.Cog):
         bot_name = self.bot.user.name.lower()
         bot_display = self.bot.user.display_name.lower()
 
-        # Update memory with USER message (if trigger_message exists, use its ID)
-        msg_id = trigger_message.id if trigger_message else None
-        await self.bot.ai.memory.add_message(channel_id_str, "user", content, message_id=msg_id, author_name=author.display_name)
+        # Build specific context for reactions or replies
+        extra_event_context = ""
+        if reaction_info:
+            emoji = reaction_info.get('emoji')
+            msg_content = reaction_info.get('message_content')
+            extra_event_context = f"\n\n### EVENT: REACTION\n{author.display_name} reacted with {emoji} to your message: \"{msg_content}\".\nYou can acknowledge this reaction or just continue the chat."
+        elif trigger_message and trigger_message.reference and trigger_message.reference.resolved:
+            ref = trigger_message.reference.resolved
+            if isinstance(ref, discord.Message):
+                extra_event_context = f"\n\n### EVENT: REPLY\n{author.display_name} is replying to your message (ID: {ref.id}): \"{ref.clean_content}\"."
+
+        # Update memory with USER message (if it's a real message, not just a reaction trigger)
+        if not reaction_info:
+            msg_id = trigger_message.id if trigger_message else None
+            await self.bot.ai.memory.add_message(channel_id_str, "user", content, message_id=msg_id, author_name=author.display_name)
 
         # Get Discord Context
         members_list = await DiscordContextFetcher.get_channel_members(channel)
         discord_context = f"\n\n### DISCORD ENVIRONMENT\nChannel: #{channel.name}\nCurrent Members:\n{members_list}\n\n"
         discord_context += f"You are talking to: {author.display_name} (ID: {author.id})"
+        discord_context += extra_event_context
 
         # Build Identity
         identity = f"You are currently logged into Discord as: {bot_display} (Username: {bot_name}). "
@@ -192,6 +205,50 @@ class ChatCog(commands.Cog):
                     print(f"[ChatCog] Error: {e}")
                     try: await message.channel.send(f"Oops, system error: {e}")
                     except: pass
+
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        if user == self.bot.user:
+            return
+
+        # Check if the reaction is on a message sent by the bot
+        if reaction.message.author.id == self.bot.user.id:
+            async with reaction.message.channel.typing():
+                try:
+                    # Provide info about the reaction to the AI
+                    reaction_info = {
+                        "emoji": str(reaction.emoji),
+                        "message_content": reaction.message.clean_content
+                    }
+                    
+                    # Synthesize a prompt for the AI to react to the reaction
+                    content = f"[REACTION: {reaction.emoji}]"
+                    
+                    final_text, target_reply, gif_url = await self.get_ai_response(
+                        reaction.message.channel, 
+                        user, 
+                        content, 
+                        trigger_message=reaction.message,
+                        reaction_info=reaction_info
+                    )
+
+                    # Send responses
+                    sent_msg = None
+                    if final_text:
+                        # For reactions, we reply to the reacted message or just send to channel
+                        send_func = target_reply.reply if target_reply else reaction.message.channel.send
+                        sent_msg = await send_func(final_text)
+                    
+                    if gif_url:
+                        await reaction.message.channel.send(gif_url)
+
+                    # Save bot response to memory if text was sent
+                    if sent_msg and final_text:
+                        channel_id_str = str(reaction.message.channel.id)
+                        await self.bot.ai.memory.add_message(channel_id_str, "assistant", final_text, message_id=sent_msg.id, author_name=self.bot.user.display_name)
+
+                except Exception as e:
+                    print(f"[ChatCog] Reaction Error: {e}")
 
     @app_commands.command(name="hidden", description="Prompt the bot without showing your message in the chat history.")
     @app_commands.describe(prompt="The message to send to the AI.", private="If True, only you will see the response.")
