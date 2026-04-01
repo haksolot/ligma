@@ -40,7 +40,7 @@ class SearchSkill(BaseSkill):
                     formatted_results.append(f"RESULT {i}:\n- Title: {r['title']}\n- Snippet: {r['body']}\n- URL: {r['href']}")
                 
                 injection = f"\n\n### LIVE WEB SEARCH DATA for '{query}':\n" + "\n".join(formatted_results)
-                injection += "\n\n### MANDATORY INSTRUCTION: You MUST use the LIVE DATA above to answer. If the data contradicts your internal knowledge, the LIVE DATA is correct."
+                injection += "\n\n### MANDATORY INSTRUCTIONS:\n1. Use the LIVE DATA above to answer. If it contradicts your knowledge, LIVE DATA is correct.\n2. DO NOT include another [SEARCH: ...] tag for this query in your next response. The search is COMPLETE."
                 print(f"[SearchSkill] Success: Injected {len(results)} results.")
                 return injection
 

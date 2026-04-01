@@ -80,20 +80,22 @@ class ChatCog(commands.Cog):
         # --- REFLEXION LOOP ---
         max_steps = 2
         step = 0
-        # Use the trigger message if available, otherwise a dummy or None for skills
-        # Some skills like History need a channel, some like React need a message
+        current_extra_context = discord_context
+        
         while step < max_steps:
-            # We pass trigger_message (which can be None)
+            # Check if any skill needs a reflection (like Search)
             reflection_prompt = await self.bot.ai.skills.run_reflections(response, trigger_message)
             if not reflection_prompt:
                 break
             
-            # Strip tags from interim response
-            cleaned_interim, _ = await self.bot.ai.skills.run_actions(response, trigger_message)
-            await self.bot.ai.memory.add_message(channel_id_str, "assistant", cleaned_interim)
+            # CRITICAL: We DO NOT add 'cleaned_interim' to permanent memory here anymore.
+            # Adding it causes the AI to see its previous thought/command in history, 
+            # which leads to loops and confusion. We only pass the results via context.
+            
+            current_extra_context += reflection_prompt
             
             response = await self.bot.ai.chat(channel_id_str, content, 
-                                            extra_context=discord_context + reflection_prompt, 
+                                            extra_context=current_extra_context, 
                                             bot_identity=identity)
             step += 1
 
