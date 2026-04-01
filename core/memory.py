@@ -25,30 +25,41 @@ class MemoryManager:
             await self.compress(channel_id)
 
     async def get_context(self, channel_id, personality, user_message):
+        import time
         messages = []
         
-        # Add summary if it exists
+        # 1. System Prompt (Identity & Instructions) FIRST
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        system_content = f"{personality}\n\n### TEMPORAL CONTEXT\nCurrent Date and Time: {current_time}"
+        messages.append({'role': 'system', 'content': system_content})
+
+        # 2. Add summary if it exists (as a recap of the past)
         if channel_id in self.summaries:
-            messages.append({'role': 'system', 'content': f"Context summary: {self.summaries[channel_id]}"})
+            messages.append({'role': 'system', 'content': f"Summary of older conversation: {self.summaries[channel_id]}"})
         
-        # Add recent history with IDs formatted for the AI
+        # 3. Add recent history with clear separation
         if channel_id in self.history:
             for msg in self.history[channel_id]:
-                prefix = ""
-                if 'id' in msg and 'author' in msg:
-                    prefix = f"(ID: {msg['id']}) {msg['author']}: "
-                elif 'id' in msg:
-                    prefix = f"(ID: {msg['id']}) "
+                role = msg['role']
+                content = msg['content']
+                author = msg.get('author', 'Unknown')
+                msg_id = msg.get('id', 'N/A')
+
+                # Format content based on role
+                if role == "assistant":
+                    # For assistant, we don't necessarily need the name prefix in the content 
+                    # if the role is already 'assistant', but the ID is still useful for context.
+                    formatted_content = f"(ID: {msg_id}) {content}"
+                else:
+                    # For users, we clearly state who is talking
+                    formatted_content = f"(ID: {msg_id}) {author}: {content}"
                 
-                # We format it so the AI sees the ID clearly in the content
                 messages.append({
-                    'role': msg['role'], 
-                    'content': f"{prefix}{msg['content']}"
+                    'role': role, 
+                    'content': formatted_content
                 })
             
-        # Add the current System Prompt
-        messages.append({'role': 'system', 'content': personality})
-        
+        # 4. Current User Message
         messages.append({'role': 'user', 'content': user_message})
         return messages
 

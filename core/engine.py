@@ -53,6 +53,16 @@ class AIEngine:
             if active_instructions:
                 system_prompt += f"\n\n### MANDATORY INSTRUCTIONS TO FOLLOW:\n{active_instructions}"
 
+            # Discord-specific behavior instruction
+            discord_behavior = (
+                "\n\n### DISCORD CONTEXTUAL BEHAVIOR:\n"
+                "- You are a participant in a Discord conversation. Respond naturally and concisely.\n"
+                "- DO NOT speak for other users or imitate them in your response.\n"
+                "- DO NOT start a dialogue with yourself. Provide only YOUR response.\n"
+                "- Focus on the most recent context while keeping in mind the history provided above."
+            )
+            system_prompt += discord_behavior
+
             # Discord-specific context (members, channel info, etc.)
             if extra_context:
                 system_prompt += f"\n\n{extra_context}"
@@ -65,6 +75,9 @@ class AIEngine:
             # Retrieve memory and format context
             full_context = await self.memory.get_context(channel_id, system_prompt, user_message)
             
+            # Logging for debugging (before call)
+            self._log_conversation(channel_id, full_context, "REQUEST_SENT")
+
             response = await self.client.chat(model=self.current_model, messages=full_context)
             
             # Store metrics for performance tracking
@@ -77,11 +90,34 @@ class AIEngine:
                 "eval_duration": response.get("eval_duration"),
                 "model": self.current_model
             }
+
+            content = response['message']['content']
+            self._log_conversation(channel_id, [{"role": "assistant", "content": content}], "RESPONSE_RECEIVED")
             
-            return response['message']['content']
+            return content
         except Exception as e:
             print(f"[AI Engine] Error during Ollama call: {e}")
             return "An error occurred during the AI call."
+
+    def _log_conversation(self, channel_id, messages, tag):
+        """Saves conversation context or response to a log file."""
+        import os
+        import json
+        import time
+        try:
+            log_dir = "logs"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            
+            filename = f"{log_dir}/chat_{channel_id}.log"
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            
+            with open(filename, "a", encoding="utf-8") as f:
+                f.write(f"\n--- {tag} | {timestamp} ---\n")
+                f.write(json.dumps(messages, indent=2, ensure_ascii=False))
+                f.write("\n")
+        except Exception as e:
+            print(f"[AI Engine] Logging error: {e}")
 
     async def get_model_info(self):
         """Fetches detailed information about the current model from Ollama."""
