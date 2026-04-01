@@ -333,6 +333,64 @@ class AICog(commands.Cog):
         
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="perf", description="Show performance metrics of the last AI generation.")
+    async def performance_stats(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
+        
+        metrics = self.bot.ai.last_metrics
+        if not metrics:
+            await interaction.followup.send("No performance data available yet. Send a message first!", ephemeral=True)
+            return
+
+        # Durations are in nanoseconds, convert to seconds
+        total_sec = (metrics.get("total_duration") or 0) / 1e9
+        load_sec = (metrics.get("load_duration") or 0) / 1e9
+        prompt_sec = (metrics.get("prompt_eval_duration") or 0) / 1e9
+        eval_sec = (metrics.get("eval_duration") or 0) / 1e9
+        
+        prompt_count = metrics.get("prompt_eval_count") or 0
+        eval_count = metrics.get("eval_count") or 0
+        
+        # Calculate Tokens Per Second (TPS)
+        # eval_count is the number of tokens generated
+        tps = eval_count / eval_sec if eval_sec > 0 else 0
+        
+        embed = discord.Embed(
+            title="Model Performance Metrics",
+            description=f"Metrics for the last generation using `{metrics.get('model')}`",
+            color=discord.Color.green()
+        )
+        
+        embed.add_field(
+            name="Throughput",
+            value=f"**{tps:.2f} tokens/s**",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Generation",
+            value=f"Tokens: `{eval_count}`\nTime: `{eval_sec:.2f}s`",
+            inline=True
+        )
+
+        embed.add_field(
+            name="Prompt Eval",
+            value=f"Tokens: `{prompt_count}`\nTime: `{prompt_sec:.2f}s`",
+            inline=True
+        )
+
+        embed.add_field(
+            name="Latencies",
+            value=f"- **Model Load:** `{load_sec:.2f}s`\n"
+                  f"- **Total Latency:** `{total_sec:.2f}s`",
+            inline=False
+        )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     # --- CONSOLIDATED COMMANDS ---
 
     @app_commands.command(name="personality", description="Open the Personality Management dashboard.")

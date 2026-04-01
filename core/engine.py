@@ -15,6 +15,7 @@ class AIEngine:
         self.client = ollama.AsyncClient()
         self._model_cache = []
         self._last_cache_update = 0
+        self.last_metrics = {}
 
     def get_cached_models(self):
         """Synchronous access to models for Discord autocomplete (must be fast)."""
@@ -65,6 +66,18 @@ class AIEngine:
             full_context = await self.memory.get_context(channel_id, system_prompt, user_message)
             
             response = await self.client.chat(model=self.current_model, messages=full_context)
+            
+            # Store metrics for performance tracking
+            self.last_metrics = {
+                "total_duration": response.get("total_duration"),
+                "load_duration": response.get("load_duration"),
+                "prompt_eval_count": response.get("prompt_eval_count"),
+                "prompt_eval_duration": response.get("prompt_eval_duration"),
+                "eval_count": response.get("eval_count"),
+                "eval_duration": response.get("eval_duration"),
+                "model": self.current_model
+            }
+            
             return response['message']['content']
         except Exception as e:
             print(f"[AI Engine] Error during Ollama call: {e}")
