@@ -61,6 +61,7 @@ class AIEngine:
                 "- DO NOT start a dialogue with yourself. Provide only YOUR response.\n"
                 "- DO NOT include any ID prefix like '(ID: ...)' in your output. These are for your reference only.\n"
                 "- ALWAYS accompany technical tags (like [SEARCH] or [READ]) with a brief natural sentence for the user (e.g., 'Let me look that up for you...').\n"
+                "- SILENCE IS OK: If an event (like a reaction) or a message doesn't require a response, you MUST return exactly '[IGNORE]' and nothing else.\n"
                 "- Focus on the most recent context while keeping in mind the history provided above."
             )
             system_prompt += discord_behavior
