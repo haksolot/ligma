@@ -61,6 +61,59 @@ class AIEngine:
             print(f"[AI Engine] Error during Ollama call: {e}")
             return "An error occurred during the AI call."
 
+    async def get_model_info(self):
+        """Fetches detailed information about the current model from Ollama."""
+        try:
+            info = await self.client.show(model=self.current_model)
+            # Use model_dump for newer pydantic-based Ollama library
+            data = info.model_dump() if hasattr(info, 'model_dump') else info
+            
+            parameters = data.get('parameters', "") or ""
+            modelfile = data.get('modelfile', "") or ""
+            modelinfo = data.get('modelinfo', {}) or {}
+            
+            # Default to 2048 if not found (standard Ollama default)
+            context_limit = 2048
+            
+            # 1. Check in modelinfo for architecture-specific context length (e.g., 'gemma3n.context_length')
+            # Search for any key ending in '.context_length'
+            for key, value in modelinfo.items():
+                if key.endswith('.context_length') and isinstance(value, int):
+                    context_limit = value
+                    break
+            else:
+                # 2. Check in parameters
+                import re
+                match = re.search(r'num_ctx\s+(\d+)', str(parameters))
+                if match:
+                    context_limit = int(match.group(1))
+                else:
+                    # 3. Fallback to modelfile search: "PARAMETER num_ctx 4096"
+                    match = re.search(r'PARAMETER\s+num_ctx\s+(\d+)', modelfile)
+                    if match:
+                        context_limit = int(match.group(1))
+            
+            return {
+                "model": self.current_model,
+                "context_limit": context_limit,
+                "details": data.get('details', {})
+            }
+        except Exception as e:
+            print(f"[AI Engine] Could not fetch model info: {e}")
+            return {"model": self.current_model, "context_limit": 2048, "details": {}}
+
+    def get_system_stats(self):
+        """Calculates the current size of persistent memory components."""
+        personality = self.personality.current_personality
+        instructions = self.instructions.get_active_content()
+        
+        return {
+            "personality_name": self.personality.current_name,
+            "personality_chars": len(personality),
+            "instructions_chars": len(instructions),
+            "total_persistent_chars": len(personality) + len(instructions)
+        }
+
     def change_model(self, new_model):
         self.current_model = new_model
         self.memory.default_model = new_model

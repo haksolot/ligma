@@ -116,8 +116,7 @@ class InstructionView(ui.View):
             discord.SelectOption(
                 label=name, 
                 value=name, 
-                description="Active" if active else "Inactive",
-                emoji="✅" if active else "❌"
+                description="Active" if active else "Inactive"
             )
             for name, active in instructions
         ][:25]
@@ -144,7 +143,7 @@ class InstructionView(ui.View):
         view = ui.View()
         view.add_item(select)
         
-        status_list = "\n".join([f"- {'✅' if a else '❌'} **{n}**" for n, a in instructions])
+        status_list = "\n".join([f"- {'(OK)' if a else '(X)'} **{n}**" for n, a in instructions])
         await interaction.response.send_message(f"### Current Instructions:\n{status_list}\n\nSelect one to flip its state:", view=view, ephemeral=True)
 
     @ui.button(label="Create/Update", style=discord.ButtonStyle.success)
@@ -201,22 +200,74 @@ class AICog(commands.Cog):
     @app_commands.command(name="model", description="Change the Ollama model used (Creator Only).")
     @app_commands.autocomplete(model_name=model_autocomplete)
     async def change_model(self, interaction: discord.Interaction, model_name: str):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("Unauthorized.", ephemeral=True)
-            return
         await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
         self.bot.ai.change_model(model_name)
         self.bot.ai.memory.clear(str(interaction.channel_id))
         await interaction.followup.send(f"**Brain replaced!** Using `{model_name}`.", ephemeral=True)
 
     @app_commands.command(name="reset", description="Clear memory of this channel (Creator Only).")
     async def reset_memory(self, interaction: discord.Interaction):
-        if not self.is_creator(interaction):
-            await interaction.response.send_message("Unauthorized.", ephemeral=True)
-            return
         await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
         self.bot.ai.memory.clear(str(interaction.channel_id))
         await interaction.followup.send("**Memory formatted!**", ephemeral=True)
+
+    @app_commands.command(name="memory", description="Check current memory usage and context stats.")
+    async def memory_stats(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
+        
+        channel_id = str(interaction.channel_id)
+        sys_stats = self.bot.ai.get_system_stats()
+        mem_stats = self.bot.ai.memory.get_stats(channel_id)
+        model_info = await self.bot.ai.get_model_info()
+        
+        total_chars = sys_stats["total_persistent_chars"] + mem_stats["total_volatile_chars"]
+        
+        # Approximate tokens (1 token ~ 4 chars for English/French)
+        est_tokens = total_chars // 4 
+        capacity = model_info["context_limit"]
+        percent = (est_tokens / capacity) * 100
+
+        embed = discord.Embed(
+            title="Memory and Context Diagnostics",
+            description=f"Active Model: `{model_info['model']}`",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="Persistent Memory (Static)", 
+            value=f"- **Personality:** `{sys_stats['personality_name']}` ({sys_stats['personality_chars']} chars)\n"
+                  f"- **Active Instructions:** {sys_stats['instructions_chars']} chars\n"
+                  f"**Total:** {sys_stats['total_persistent_chars']} chars",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Compressible Memory (Volatile)", 
+            value=f"- **History:** {mem_stats['history_count']} messages ({mem_stats['history_chars']} chars)\n"
+                  f"- **Context Summary:** {mem_stats['summary_chars']} chars\n"
+                  f"**Total:** {mem_stats['total_volatile_chars']} chars",
+            inline=False
+        )
+        
+        details_text = f"**Estimated Usage:** ~{est_tokens} / {capacity} tokens ({percent:.1f}%)\n"
+        details_text += f"*Limit based on current model's configuration.*"
+        
+        embed.add_field(
+            name="Resource Quota",
+            value=details_text,
+            inline=False
+        )
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     # --- CONSOLIDATED COMMANDS ---
 
@@ -226,7 +277,7 @@ class AICog(commands.Cog):
             await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
         await interaction.response.send_message(
-            "## 🎭 Personality Management\nSelect an action below to view, switch, or modify personalities.",
+            "## Personality Management\nSelect an action below to view, switch, or modify personalities.",
             view=PersonalityView(self.bot, self),
             ephemeral=True
         )
@@ -237,7 +288,7 @@ class AICog(commands.Cog):
             await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
         await interaction.response.send_message(
-            "## 📜 Global Instructions\nManage the rules that all personalities must follow.",
+            "## Global Instructions\nManage the rules that all personalities must follow.",
             view=InstructionView(self.bot, self),
             ephemeral=True
         )

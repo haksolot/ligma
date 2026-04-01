@@ -60,6 +60,22 @@ class MemoryManager:
         except Exception as e:
             print(f"[Memory] Compression error: {e}")
 
+    def get_stats(self, channel_id):
+        """Returns the current state of memory for a channel."""
+        history = self.history.get(channel_id, [])
+        summary = self.summaries.get(channel_id, "")
+        
+        # Calculate character counts
+        history_chars = sum(len(m['content']) for m in history)
+        summary_chars = len(summary)
+        
+        return {
+            "history_count": len(history),
+            "history_chars": history_chars,
+            "summary_chars": summary_chars,
+            "total_volatile_chars": history_chars + summary_chars
+        }
+
     def clear(self, channel_id):
         if channel_id in self.history:
             self.history[channel_id] = []
