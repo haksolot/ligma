@@ -75,7 +75,7 @@ class ChatCog(commands.Cog):
         identity += f"You are in a conversation with {author.display_name}."
 
         # First Call to AI
-        response = await self.bot.ai.chat(channel_id_str, content, extra_context=discord_context, bot_identity=identity)
+        response = await self.bot.ai.chat(channel_id_str, content, extra_context=discord_context, bot_identity=identity, author_name=author.display_name)
 
         # --- REFLEXION LOOP ---
         max_steps = 2
@@ -99,7 +99,8 @@ class ChatCog(commands.Cog):
             response = await self.bot.ai.chat(channel_id_str, content, 
                                             extra_context=current_extra_context, 
                                             bot_identity=identity,
-                                            interim_messages=interim_messages)
+                                            interim_messages=interim_messages,
+                                            author_name=author.display_name)
             step += 1
 
         # --- FINAL ACTIONS ---

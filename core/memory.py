@@ -24,7 +24,7 @@ class MemoryManager:
         if len(self.history[channel_id]) > self.limit:
             await self.compress(channel_id)
 
-    async def get_context(self, channel_id, personality, user_message):
+    async def get_context(self, channel_id, personality, user_message, author_name=None):
         import time
         messages = []
         
@@ -39,7 +39,13 @@ class MemoryManager:
         
         # 3. Add recent history with clear separation
         if channel_id in self.history:
-            for msg in self.history[channel_id]:
+            history_messages = self.history[channel_id]
+            # AVOID DUPLICATION: If the last message in history is the same as the current user_message, 
+            # we skip it in the history loop because it will be added at the end.
+            if history_messages and history_messages[-1]['role'] == 'user' and history_messages[-1]['content'] == user_message:
+                history_messages = history_messages[:-1]
+
+            for msg in history_messages:
                 role = msg['role']
                 content = msg['content']
                 author = msg.get('author', 'Unknown')
@@ -58,8 +64,9 @@ class MemoryManager:
                     'content': formatted_content
                 })
             
-        # 4. Current User Message
-        messages.append({'role': 'user', 'content': user_message})
+        # 4. Current User Message (Formatted with author for consistency)
+        final_user_content = f"{author_name}: {user_message}" if author_name else user_message
+        messages.append({'role': 'user', 'content': final_user_content})
         return messages
 
     async def compress(self, channel_id):
