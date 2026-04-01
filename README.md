@@ -20,8 +20,11 @@ The system is engineered for extensibility and strictly adheres to a modular des
 ### Core Module (`core/`)
 The foundational logic of the ecosystem:
 - **`engine.py`**: Fully asynchronous orchestration of LLM interactions via the Ollama API.
-- **`memory.py`**: Context management system featuring short-term history and automated summarization (powered by `llama3.2:1b`) to optimize context window efficiency.
-- **`personality.py` / `instructions.py`**: Dynamic management of system prompts and behavioral constraints, allowing real-time character swaps and global instruction sets.
+- **`memory.py`**: Context management system featuring short-term history and automated summarization.
+- **`skills/`**: Extensible skill system including:
+    - **`search.py`**: Real-time web search capability (powered by `ddgs`).
+    - **`gifs.py`**: Giphy integration for visual responses.
+- **`personality.py` / `instructions.py`**: Dynamic management of system prompts and behavioral profiles.
 
 ### Platform Layer (`platforms/`)
 Concrete implementations for specific interfaces:
@@ -38,7 +41,7 @@ Concrete implementations for specific interfaces:
 
 ### 1. Repository Initialization
 ```bash
-git clone https://github.com/your-user/ligma.git
+git clone https://github.com/haksolot/ligma.git
 cd ligma
 ```
 
@@ -70,9 +73,10 @@ uv run run.py
 | --- | --- |
 | `/model` | Dynamic hot-swapping of the active Ollama model with autocompletion. |
 | `/reset` | Volatile memory purge and context summary reset for the current channel. |
-| `/personality [view\|select\|create\|delete]` | Real-time management of the agent's behavioral profile. |
-| `/instructions [list\|create\|toggle\|delete]` | Global management of persistent system instructions. |
-| **GIF Support** | Automatic GIF injection via `[GIF: query]` syntax in LLM responses (Giphy API). |
+| `/personality` | Real-time management of the agent's behavioral profile. |
+| `/instructions` | Global management of persistent system instructions. |
+| **Search Skill** | Automatic web search via `[SEARCH: query]` syntax (powered by `ddgs`). |
+| **GIF Support** | Automatic GIF injection via `[GIF: query]` syntax (Giphy API). |
 
 ---
 

@@ -73,6 +73,7 @@ class PersonalityView(ui.View):
         async def callback(inter, name, content):
             await inter.response.defer(ephemeral=True)
             self.bot.ai.personality.save(name, content)
+            self.bot.ai.personality.refresh_cache()
             await inter.followup.send(f"Personality **{name}** saved/updated!", ephemeral=True)
 
         await interaction.response.send_modal(CreateModal("Create Personality", callback))
@@ -95,6 +96,7 @@ class PersonalityView(ui.View):
             await inter.response.defer(ephemeral=True)
             name = select.values[0]
             if self.bot.ai.personality.delete(name):
+                self.bot.ai.personality.refresh_cache()
                 await inter.followup.send(f"Personality **{name}** deleted.", ephemeral=True)
             else:
                 await inter.followup.send("Failed to delete.", ephemeral=True)
@@ -157,6 +159,7 @@ class InstructionView(ui.View):
         async def callback(inter, name, content):
             await inter.response.defer(ephemeral=True)
             self.bot.ai.instructions.create_or_update(name, content)
+            self.bot.ai.instructions.refresh_cache()
             await inter.followup.send(f"Instruction **{name}** saved/updated.", ephemeral=True)
 
         await interaction.response.send_modal(CreateModal("Create Instruction", callback, True))
@@ -177,6 +180,7 @@ class InstructionView(ui.View):
             await inter.response.defer(ephemeral=True)
             name = select.values[0]
             if self.bot.ai.instructions.delete(name):
+                self.bot.ai.instructions.refresh_cache()
                 await inter.followup.send(f"Instruction **{name}** deleted.", ephemeral=True)
             else:
                 await inter.followup.send("Failed to delete.", ephemeral=True)
@@ -246,12 +250,14 @@ class AICog(commands.Cog):
     # --- STANDALONE COMMANDS ---
 
     async def model_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.is_creator(interaction): return []
-        # Zero-latency access to pre-cached model list
-        models = self.bot.ai.get_cached_models()
+        if interaction.user.id != CREATOR_ID: 
+            return []
+        
+        current = current.lower()
         return [
             app_commands.Choice(name=m, value=m) 
-            for m in models if current.lower() in m.lower()
+            for m in self.bot.ai.get_cached_models() 
+            if current in m.lower()
         ][:25]
 
     @app_commands.command(name="model", description="Change the Ollama model used (Creator Only).")

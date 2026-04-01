@@ -18,36 +18,37 @@ class ChatCog(commands.Cog):
         if not content or not hasattr(channel, "members") or "@" not in content:
             return content
 
+        # Build mapping for members (limit to 100 most relevant for performance)
         name_to_id = {}
+        content_lower = content.lower()
+        
+        # Only process members whose names are actually mentioned in the content
         for m in channel.members:
-            name_to_id[m.display_name.lower()] = m.id
-            name_to_id[m.name.lower()] = m.id
+            disp_lower = m.display_name.lower()
+            name_lower = m.name.lower()
+            
+            if f"@{disp_lower}" in content_lower:
+                name_to_id[disp_lower] = m.id
+            if f"@{name_lower}" in content_lower:
+                name_to_id[name_lower] = m.id
+            
+            if len(name_to_id) >= 50: break # Safety cap
+            
+        if not name_to_id:
+            return content
             
         sorted_names = sorted(name_to_id.keys(), key=len, reverse=True)
-        processed_content = content
-        
-        if not sorted_names:
-            return content
-            
-        content_lower = content.lower()
-        relevant_names = [n for n in sorted_names if f"@{n}" in content_lower]
-        
-        if not relevant_names:
-            return content
-
         pattern = re.compile(
-            "|".join(rf"@{re.escape(name)}(?!\w)" for name in relevant_names),
+            "|".join(rf"@{re.escape(name)}(?!\w)" for name in sorted_names),
             re.IGNORECASE
         )
         
         def sub_func(match):
             matched_text = match.group(0).lower().lstrip('@')
             user_id = name_to_id.get(matched_text)
-            if user_id:
-                return f"<@{user_id}>"
-            return match.group(0)
+            return f"<@{user_id}>" if user_id else match.group(0)
 
-        return pattern.sub(sub_func, processed_content)
+        return pattern.sub(sub_func, content)
 
     async def get_ai_response(self, channel, author, content, trigger_message=None):
         """
@@ -70,7 +71,8 @@ class ChatCog(commands.Cog):
 
         # Build Identity
         identity = f"You are currently logged into Discord as: {bot_display} (Username: {bot_name}). "
-        identity += f"Your Discord ID is {bot_id}. You are in a conversation with {author.display_name}."
+        identity += f"Your Bot User ID is {bot_id} (Warning: NEVER use this ID for reacting or replying, it is NOT a message ID). "
+        identity += f"You are in a conversation with {author.display_name}."
 
         # First Call to AI
         response = await self.bot.ai.chat(channel_id_str, content, extra_context=discord_context, bot_identity=identity)
@@ -104,6 +106,11 @@ class ChatCog(commands.Cog):
 
         # Clean final text
         final_text = final_text.replace('\u200b', '').strip()
+        
+        # Add search indicator if performed
+        if context_dict.get('search_performed') and final_text:
+            final_text += "\n\n*(Sources: DuckDuckGo)*"
+
         if final_text:
             final_text = self._process_mentions(final_text, channel)
 

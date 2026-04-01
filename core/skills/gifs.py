@@ -1,4 +1,3 @@
-import discord
 import re
 from typing import Optional, Tuple, Dict, Any
 from .base import BaseSkill
@@ -11,11 +10,12 @@ class GifSkill(BaseSkill):
     def get_prompt_injection(self) -> str:
         return "**GIFS**: To show a GIF, append `[GIF: keywords]` at the end."
 
-    async def execute_action(self, response: str, message: discord.Message) -> Tuple[str, Dict[str, Any]]:
+    async def execute_action(self, response: str, message: Any) -> Tuple[str, Dict[str, Any]]:
         gif_query = None
-        gif_match = re.search(r'\[GIF: (.*?)\]', response)
+        # Robust detection for GIFF, Giphy, etc. and case-insensitivity
+        gif_match = re.search(r'\[GI+F:?\s*(.*?)\]', response, re.IGNORECASE)
         if gif_match:
-            gif_query = gif_match.group(1)
+            gif_query = gif_match.group(1).strip()
         
-        cleaned_response = re.sub(r'\[GIF: (.*?)\]', '', response)
-        return cleaned_response, {'gif_query': gif_query}
+        cleaned_response = re.sub(r'\[GI+F:?.*?\]', '', response, flags=re.IGNORECASE)
+        return cleaned_response.strip(), {'gif_query': gif_query}
