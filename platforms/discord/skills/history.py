@@ -22,12 +22,13 @@ class HistorySkill(BaseSkill):
             limit = min(limit, 25)
             history_text = await DiscordContextFetcher.get_recent_history(message.channel, limit, exclude_id=message.id)
             history_prompt = f"\n\n### CHANNEL HISTORY DATA (Excluded current message):\n{history_text}\n\n"
-            history_prompt += "### INSTRUCTION: Use the IDs provided above to perform targeted REACT or REPLY actions if needed."
+            history_prompt += "### MANDATORY INSTRUCTIONS:\n1. Use the IDs provided above to perform targeted REACT or REPLY actions.\n2. DO NOT include another [HISTORY: ...] tag for this query. The history is FETCHED."
             
             # We must NOT return the original tag in the next prompt, or it might loop
             return history_prompt
         return None
 
     async def execute_action(self, response: str, message: discord.Message) -> Tuple[str, Dict[str, Any]]:
-        cleaned_response = re.sub(r'\[HISTORY: (\d+)\]', '', response)
-        return cleaned_response, {}
+        # Robustly remove any version of the tag
+        cleaned_response = re.sub(r'\[HIST?OR[Y|I]E?:? \d+\]', '', response, flags=re.IGNORECASE)
+        return cleaned_response.strip(), {}

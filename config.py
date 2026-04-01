@@ -18,7 +18,7 @@ CREATOR_ID = int(os.getenv('CREATOR_ID', 0))
 DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'llama3.2:3b')
 
 # --- CORE LOGIC ---
-MEMORY_LIMIT = int(os.getenv('MEMORY_LIMIT', 6))
+MEMORY_LIMIT = int(os.getenv('MEMORY_LIMIT', 10))
 PERSONALITY_FILE = "personality.txt"
 
 # --- GIFS ---
