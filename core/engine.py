@@ -11,15 +11,26 @@ class AIEngine:
         self.personality = PersonalityManager()
         self.instructions = InstructionManager()
         self.client = ollama.AsyncClient()
+        self._model_cache = []
+        self._last_cache_update = 0
 
-    async def list_models(self):
-        """Retrieves the list of installed Ollama models."""
+    async def list_models(self, force_refresh=False):
+        """Retrieves the list of installed Ollama models with a short cache."""
+        import time
+        now = time.time()
+        
+        # Cache for 30 seconds unless forced
+        if not force_refresh and self._model_cache and (now - self._last_cache_update < 30):
+            return self._model_cache
+
         try:
             response = await self.client.list()
-            return [m.model for m in response.models]
+            self._model_cache = [m.model for m in response.models]
+            self._last_cache_update = now
+            return self._model_cache
         except Exception as e:
             print(f"[AI Engine] Could not list models: {e}")
-            return []
+            return self._model_cache or []
 
     async def chat(self, channel_id, user_message, extra_context="", bot_identity=""):
         """Sends a chat request to Ollama with optional extra context and identity."""
