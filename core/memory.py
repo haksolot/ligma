@@ -46,13 +46,12 @@ class MemoryManager:
                 msg_id = msg.get('id', 'N/A')
 
                 # Format content based on role
+                prefix = f"(ID: {msg_id}) " if msg_id and msg_id != 'N/A' else ""
+                
                 if role == "assistant":
-                    # For assistant, we don't necessarily need the name prefix in the content 
-                    # if the role is already 'assistant', but the ID is still useful for context.
-                    formatted_content = f"(ID: {msg_id}) {content}"
+                    formatted_content = f"{prefix}{content}"
                 else:
-                    # For users, we clearly state who is talking
-                    formatted_content = f"(ID: {msg_id}) {author}: {content}"
+                    formatted_content = f"{prefix}{author}: {content}"
                 
                 messages.append({
                     'role': role, 

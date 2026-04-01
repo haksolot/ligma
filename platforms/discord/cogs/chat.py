@@ -185,8 +185,7 @@ class ChatCog(commands.Cog):
                     # Save bot response to memory
                     if sent_msg:
                         await self.bot.ai.memory.add_message(channel_id_str, "assistant", final_text, message_id=sent_msg.id, author_name=self.bot.user.display_name)
-                    elif not final_text:
-                        await self.bot.ai.memory.add_message(channel_id_str, "assistant", "[Action Executed]", author_name=self.bot.user.display_name)
+                    # Note: We don't save empty/action-only responses to memory to keep history clean.
 
                 except Exception as e:
                     print(f"[ChatCog] Error: {e}")
