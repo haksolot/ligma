@@ -39,12 +39,14 @@ class PersonalityView(ui.View):
 
     @ui.button(label="View Current", style=discord.ButtonStyle.primary)
     async def view_current(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         name = self.bot.ai.personality.current_name
         content = self.bot.ai.personality.current_personality
-        await interaction.response.send_message(f"### Current Personality: **{name}**\n>>> {content}", ephemeral=True)
+        await interaction.followup.send(f"### Current Personality: **{name}**\n>>> {content}", ephemeral=True)
 
     @ui.button(label="Switch", style=discord.ButtonStyle.secondary)
     async def switch_personality(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         options = [
             discord.SelectOption(label=p, value=p, default=(p == self.bot.ai.personality.current_name))
             for p in self.bot.ai.personality.list_all()
@@ -63,10 +65,11 @@ class PersonalityView(ui.View):
         select.callback = select_callback
         view = ui.View()
         view.add_item(select)
-        await interaction.response.send_message("Select a new personality:", view=view, ephemeral=True)
+        await interaction.followup.send("Select a new personality:", view=view, ephemeral=True)
 
     @ui.button(label="Create/Update", style=discord.ButtonStyle.success)
     async def create_new(self, interaction: discord.Interaction, button: ui.Button):
+        # Modals can't be deferred before being sent
         async def callback(inter, name, content):
             await inter.response.defer(ephemeral=True)
             self.bot.ai.personality.save(name, content)
@@ -76,13 +79,14 @@ class PersonalityView(ui.View):
 
     @ui.button(label="Delete", style=discord.ButtonStyle.danger)
     async def delete_personality(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         options = [
             discord.SelectOption(label=p, value=p)
             for p in self.bot.ai.personality.list_all() if p != "default"
         ][:25]
         
         if not options:
-            await interaction.response.send_message("No custom personalities to delete.", ephemeral=True)
+            await interaction.followup.send("No custom personalities to delete.", ephemeral=True)
             return
 
         select = ui.Select(placeholder="Select personality to delete...", options=options)
@@ -98,7 +102,7 @@ class PersonalityView(ui.View):
         select.callback = delete_callback
         view = ui.View()
         view.add_item(select)
-        await interaction.response.send_message("Select a personality to **permanently delete**:", view=view, ephemeral=True)
+        await interaction.followup.send("Select a personality to **permanently delete**:", view=view, ephemeral=True)
 
 class InstructionView(ui.View):
     def __init__(self, bot, cog):
@@ -108,9 +112,10 @@ class InstructionView(ui.View):
 
     @ui.button(label="List & Toggle", style=discord.ButtonStyle.primary)
     async def list_toggle(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         instructions = self.bot.ai.instructions.list_all()
         if not instructions:
-            await interaction.response.send_message("No instructions found.", ephemeral=True)
+            await interaction.followup.send("No instructions found.", ephemeral=True)
             return
 
         options = [
@@ -145,7 +150,7 @@ class InstructionView(ui.View):
         view.add_item(select)
         
         status_list = "\n".join([f"- {'(OK)' if a else '(X)'} **{n}**" for n, a in instructions])
-        await interaction.response.send_message(f"### Current Instructions:\n{status_list}\n\nSelect one to flip its state:", view=view, ephemeral=True)
+        await interaction.followup.send(f"### Current Instructions:\n{status_list}\n\nSelect one to flip its state:", view=view, ephemeral=True)
 
     @ui.button(label="Create/Update", style=discord.ButtonStyle.success)
     async def create_new(self, interaction: discord.Interaction, button: ui.Button):
@@ -158,11 +163,12 @@ class InstructionView(ui.View):
 
     @ui.button(label="Delete", style=discord.ButtonStyle.danger)
     async def delete_instr(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         instructions = self.bot.ai.instructions.list_all()
         options = [discord.SelectOption(label=name, value=name) for name, active in instructions][:25]
         
         if not options:
-            await interaction.response.send_message("No instructions to delete.", ephemeral=True)
+            await interaction.followup.send("No instructions to delete.", ephemeral=True)
             return
 
         select = ui.Select(placeholder="Select instruction to delete...", options=options)
@@ -178,7 +184,7 @@ class InstructionView(ui.View):
         select.callback = delete_callback
         view = ui.View()
         view.add_item(select)
-        await interaction.response.send_message("Select an instruction to **permanently delete**:", view=view, ephemeral=True)
+        await interaction.followup.send("Select an instruction to **permanently delete**:", view=view, ephemeral=True)
 
 # --- COG ---
 
@@ -275,10 +281,11 @@ class AICog(commands.Cog):
 
     @app_commands.command(name="personality", description="Open the Personality Management dashboard.")
     async def manage_personality(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not self.is_creator(interaction):
-            await interaction.response.send_message("Unauthorized.", ephemeral=True)
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
             return
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "## Personality Management\nSelect an action below to view, switch, or modify personalities.",
             view=PersonalityView(self.bot, self),
             ephemeral=True
@@ -286,10 +293,11 @@ class AICog(commands.Cog):
 
     @app_commands.command(name="instructions", description="Open the Global Instructions dashboard.")
     async def manage_instructions(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not self.is_creator(interaction):
-            await interaction.response.send_message("Unauthorized.", ephemeral=True)
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
             return
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "## Global Instructions\nManage the rules that all personalities must follow.",
             view=InstructionView(self.bot, self),
             ephemeral=True
