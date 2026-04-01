@@ -12,7 +12,11 @@ class SearchSkill(BaseSkill):
     def get_prompt_injection(self) -> str:
         import datetime
         today = datetime.date.today().strftime("%B %d, %Y")
-        return f"**SEARCH**: Today is {today}. If you lack real-time info or need to verify a fact, you MUST include `[SEARCH: query]` in your interim response. You will receive search results. If a result looks very relevant but the snippet is too short, use `[READ: url]` (Browser skill) in your NEXT interim response to read the full page."
+        return (
+            f"**SEARCH**: Today is {today}. Use `[SEARCH: query]` ONLY for real-time news, specific current events, or verifying unknown facts. "
+            "DO NOT search for your own capabilities, identity, or general knowledge you already possess. "
+            "If a result looks very relevant but the snippet is too short, use `[READ: url]` (Browser skill) in your NEXT interim response."
+        )
 
     async def execute_reflection(self, response: str, message: Any) -> Optional[str]:
         # Robust detection for typos like 'SEAARCH' and case-insensitivity

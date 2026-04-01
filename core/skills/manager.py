@@ -21,7 +21,11 @@ class SkillManager:
         if not prompts:
             return ""
             
-        header = "### DISCORD PROTOCOL (STRICT):\n0. **PINGING**: Use <@USER_ID> syntax only.\n"
+        header = (
+            "### YOUR DISCORD CAPABILITIES:\n"
+            "You have access to the following skills. Use them naturally when needed.\n"
+            "0. **PINGING**: Use <@USER_ID> syntax only to mention users.\n"
+        )
         return header + "\n".join(prompts)
 
     def toggle_skill(self, name: str, state: bool) -> bool:
