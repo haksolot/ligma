@@ -5,24 +5,27 @@ from .personality import PersonalityManager
 from .instructions import InstructionManager
 
 class AIEngine:
-    def __init__(self, default_model=DEFAULT_MODEL):
+    def __init__(self, default_model=DEFAULT_MODEL, skills=None):
         self.current_model = default_model
         self.memory = MemoryManager(default_model=default_model, limit=MEMORY_LIMIT)
         self.personality = PersonalityManager()
         self.instructions = InstructionManager()
+        from core.skills import SkillManager
+        self.skills = SkillManager(skills=skills)
         self.client = ollama.AsyncClient()
         self._model_cache = []
         self._last_cache_update = 0
 
+    def get_cached_models(self):
+        """Synchronous access to models for Discord autocomplete (must be fast)."""
+        return self._model_cache
+
     async def list_models(self, force_refresh=False):
-        """Retrieves the list of installed Ollama models with a short cache."""
+        """Retrieves and caches the list of models."""
         import time
         now = time.time()
-        
-        # Cache for 30 seconds unless forced
-        if not force_refresh and self._model_cache and (now - self._last_cache_update < 30):
+        if not force_refresh and self._model_cache and (now - self._last_cache_update < 60):
             return self._model_cache
-
         try:
             response = await self.client.list()
             self._model_cache = [m.model for m in response.models]
@@ -30,7 +33,7 @@ class AIEngine:
             return self._model_cache
         except Exception as e:
             print(f"[AI Engine] Could not list models: {e}")
-            return self._model_cache or []
+            return self._model_cache
 
     async def chat(self, channel_id, user_message, extra_context="", bot_identity=""):
         """Sends a chat request to Ollama with optional extra context and identity."""
@@ -53,16 +56,11 @@ class AIEngine:
             if extra_context:
                 system_prompt += f"\n\n{extra_context}"
             
-            # Crucial meta-instruction for Discord interactions    
-            system_prompt += """
-### DISCORD PROTOCOL (STRICT):
-1. **PINGING**: Use <@USER_ID> syntax only.
-2. **GIFS**: If you want to show a GIF, you MUST append `[GIF: keywords]` at the end of your message.
-   - Example User: "Show me a cat."
-   - Example Assistant: "Here is a cute cat! [GIF: cute cat]"
-   - NEVER say "Here is a GIF" without adding the `[GIF: ...]` tag.
-   - The tag MUST be in brackets: [GIF: your search query]
-"""
+            # Crucial meta-instruction for Discord interactions
+            skills_prompt = self.skills.get_active_prompts()
+            if skills_prompt:
+                system_prompt += f"\n\n{skills_prompt}"
+
             # Retrieve memory and format context
             full_context = await self.memory.get_context(channel_id, system_prompt, user_message)
             

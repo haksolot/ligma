@@ -1,18 +1,24 @@
 import ollama
+from config import DEFAULT_MODEL
 
 class MemoryManager:
-    def __init__(self, default_model="llama3.2:3b", limit=10):
+    def __init__(self, default_model=DEFAULT_MODEL, limit=10):
         self.history = {}  # {channel_id: [messages]}
         self.summaries = {}  # {channel_id: "summary"}
         self.limit = limit
         self.default_model = default_model
         self.client = ollama.AsyncClient()
 
-    async def add_message(self, channel_id, role, content):
+    async def add_message(self, channel_id, role, content, message_id=None, author_name=None):
         if channel_id not in self.history:
             self.history[channel_id] = []
         
-        self.history[channel_id].append({'role': role, 'content': content})
+        # We store metadata to help the AI target messages
+        entry = {'role': role, 'content': content}
+        if message_id: entry['id'] = message_id
+        if author_name: entry['author'] = author_name
+            
+        self.history[channel_id].append(entry)
         
         # Compress if too many messages
         if len(self.history[channel_id]) > self.limit:
@@ -25,12 +31,22 @@ class MemoryManager:
         if channel_id in self.summaries:
             messages.append({'role': 'system', 'content': f"Context summary: {self.summaries[channel_id]}"})
         
-        # Add recent history
+        # Add recent history with IDs formatted for the AI
         if channel_id in self.history:
-            messages.extend(self.history[channel_id])
+            for msg in self.history[channel_id]:
+                prefix = ""
+                if 'id' in msg and 'author' in msg:
+                    prefix = f"(ID: {msg['id']}) {msg['author']}: "
+                elif 'id' in msg:
+                    prefix = f"(ID: {msg['id']}) "
+                
+                # We format it so the AI sees the ID clearly in the content
+                messages.append({
+                    'role': msg['role'], 
+                    'content': f"{prefix}{msg['content']}"
+                })
             
-        # Add the current System Prompt (Personality + Instructions) 
-        # just before the new user message to give it maximum weight.
+        # Add the current System Prompt
         messages.append({'role': 'system', 'content': personality})
         
         messages.append({'role': 'user', 'content': user_message})
@@ -44,8 +60,8 @@ class MemoryManager:
             
             prompt = f"""
             Here is the previous context: {old_summary}
-            Here are new exchanges: {messages_to_compress}
-            Instruction: Make an extremely concise summary (max 2 sentences) of this information.
+            Here are new exchanges (format: ID | Author: Content): {messages_to_compress}
+            Instruction: Make an extremely concise summary of this information. Keep track of important IDs if relevant.
             """
             
             response = await self.client.chat(model=self.default_model, messages=[
@@ -54,18 +70,15 @@ class MemoryManager:
             ])
             
             self.summaries[channel_id] = response['message']['content']
-            self.history[channel_id] = self.history[channel_id][-2:]  # Cleanup
+            self.history[channel_id] = self.history[channel_id][-2:]
             print(f"[Memory] Compression completed for {channel_id}.")
             
         except Exception as e:
             print(f"[Memory] Compression error: {e}")
 
     def get_stats(self, channel_id):
-        """Returns the current state of memory for a channel."""
         history = self.history.get(channel_id, [])
         summary = self.summaries.get(channel_id, "")
-        
-        # Calculate character counts
         history_chars = sum(len(m['content']) for m in history)
         summary_chars = len(summary)
         

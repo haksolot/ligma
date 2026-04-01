@@ -186,6 +186,54 @@ class InstructionView(ui.View):
         view.add_item(select)
         await interaction.followup.send("Select an instruction to **permanently delete**:", view=view, ephemeral=True)
 
+class SkillView(ui.View):
+    def __init__(self, bot, cog):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.cog = cog
+
+    @ui.button(label="List & Toggle Skills", style=discord.ButtonStyle.primary)
+    async def list_toggle(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        skills = self.bot.ai.skills.list_all()
+        if not skills:
+            await interaction.followup.send("No skills found.", ephemeral=True)
+            return
+
+        options = [
+            discord.SelectOption(
+                label=name, 
+                value=name, 
+                description=f"{'Active' if active else 'Inactive'} - {desc[:50]}"
+            )
+            for name, active, desc in skills
+        ][:25]
+        
+        select = ui.Select(
+            placeholder="Select skill to TOGGLE state...",
+            options=options
+        )
+        
+        async def toggle_callback(inter: discord.Interaction):
+            await inter.response.defer(ephemeral=True)
+            name = select.values[0]
+            current_status = next(active for n, active, desc in skills if n == name)
+            new_status = not current_status
+            
+            if self.bot.ai.skills.toggle_skill(name, new_status):
+                status_text = "activated" if new_status else "deactivated"
+                await inter.followup.send(f"Skill **{name}** {status_text}.", ephemeral=True)
+            else:
+                await inter.followup.send("Error toggling skill.", ephemeral=True)
+            
+        select.callback = toggle_callback
+        view = ui.View()
+        view.add_item(select)
+        
+        status_list = "\n".join([f"- {'(OK)' if a else '(X)'} **{n}** - {d}" for n, a, d in skills])
+        await interaction.followup.send(f"### Current Skills:\n{status_list}\n\nSelect one to flip its state:", view=view, ephemeral=True)
+
+
 # --- COG ---
 
 class AICog(commands.Cog):
@@ -199,10 +247,12 @@ class AICog(commands.Cog):
 
     async def model_autocomplete(self, interaction: discord.Interaction, current: str):
         if not self.is_creator(interaction): return []
-        try:
-            models = await self.bot.ai.list_models()
-            return [app_commands.Choice(name=m, value=m) for m in models if current.lower() in m.lower()][:25]
-        except: return []
+        # Zero-latency access to pre-cached model list
+        models = self.bot.ai.get_cached_models()
+        return [
+            app_commands.Choice(name=m, value=m) 
+            for m in models if current.lower() in m.lower()
+        ][:25]
 
     @app_commands.command(name="model", description="Change the Ollama model used (Creator Only).")
     @app_commands.autocomplete(model_name=model_autocomplete)
@@ -300,6 +350,18 @@ class AICog(commands.Cog):
         await interaction.followup.send(
             "## Global Instructions\nManage the rules that all personalities must follow.",
             view=InstructionView(self.bot, self),
+            ephemeral=True
+        )
+
+    @app_commands.command(name="skills", description="Open the Skills Management dashboard.")
+    async def manage_skills(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
+        await interaction.followup.send(
+            "## Skills Management\nManage the modular capabilities of your AI.",
+            view=SkillView(self.bot, self),
             ephemeral=True
         )
 
