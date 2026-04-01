@@ -36,8 +36,8 @@ class AIEngine:
             print(f"[AI Engine] Could not list models: {e}")
             return self._model_cache
 
-    async def chat(self, channel_id, user_message, extra_context="", bot_identity=""):
-        """Sends a chat request to Ollama with optional extra context and identity."""
+    async def chat(self, channel_id, user_message, extra_context="", bot_identity="", interim_messages=None):
+        """Sends a chat request to Ollama with optional extra context and interim thoughts."""
         try:
             # Prepare System Prompt: Personality + Active Instructions
             active_instructions = self.instructions.get_active_content()
@@ -75,6 +75,11 @@ class AIEngine:
             # Retrieve memory and format context
             full_context = await self.memory.get_context(channel_id, system_prompt, user_message)
             
+            # Inject interim messages (assistant thoughts/actions) before the final user message
+            if interim_messages:
+                # full_context[-1] is the current user_message
+                full_context = full_context[:-1] + interim_messages + [full_context[-1]]
+
             # Logging for debugging (before call)
             self._log_conversation(channel_id, full_context, "REQUEST_SENT")
 

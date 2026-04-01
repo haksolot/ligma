@@ -12,7 +12,7 @@ class LigmaBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
         
         # Inject Discord-specific skills
-        from core.skills import GifSkill, SearchSkill
+        from core.skills import GifSkill, SearchSkill, BrowserSkill
         from platforms.discord.skills.history import HistorySkill
         from platforms.discord.skills.reactions import ReactionSkill
         from platforms.discord.skills.replies import ReplySkill
@@ -20,6 +20,7 @@ class LigmaBot(commands.Bot):
         discord_skills = [
             GifSkill(),
             SearchSkill(),
+            BrowserSkill(),
             HistorySkill(),
             ReactionSkill(),
             ReplySkill()

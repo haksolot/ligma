@@ -81,22 +81,25 @@ class ChatCog(commands.Cog):
         max_steps = 2
         step = 0
         current_extra_context = discord_context
+        interim_messages = []
         
         while step < max_steps:
-            # Check if any skill needs a reflection (like Search)
+            # Check if any skill needs a reflection (like Search or Browser)
             reflection_prompt = await self.bot.ai.skills.run_reflections(response, trigger_message)
             if not reflection_prompt:
                 break
             
-            # CRITICAL: We DO NOT add 'cleaned_interim' to permanent memory here anymore.
-            # Adding it causes the AI to see its previous thought/command in history, 
-            # which leads to loops and confusion. We only pass the results via context.
+            # We add the assistant's previous message to interim_messages
+            # so the model knows it already "thought" of this action.
+            interim_messages.append({"role": "assistant", "content": response})
             
-            current_extra_context += reflection_prompt
+            # We add the result as a system message in the interim context
+            interim_messages.append({"role": "system", "content": reflection_prompt})
             
             response = await self.bot.ai.chat(channel_id_str, content, 
                                             extra_context=current_extra_context, 
-                                            bot_identity=identity)
+                                            bot_identity=identity,
+                                            interim_messages=interim_messages)
             step += 1
 
         # --- FINAL ACTIONS ---
@@ -109,9 +112,13 @@ class ChatCog(commands.Cog):
         # Clean final text
         final_text = final_text.replace('\u200b', '').strip()
         
-        # Add search indicator if performed
-        if context_dict.get('search_performed') and final_text:
-            final_text += "\n\n*(Sources: DuckDuckGo)*"
+        # Add indicators if performed
+        indicators = []
+        if context_dict.get('search_performed'): indicators.append("DuckDuckGo")
+        if context_dict.get('read_performed'): indicators.append("Browser")
+        
+        if indicators and final_text:
+            final_text += f"\n\n*(Sources: {', '.join(indicators)})*"
 
         if final_text:
             final_text = self._process_mentions(final_text, channel)
