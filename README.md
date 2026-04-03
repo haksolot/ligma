@@ -1,88 +1,141 @@
 # L.I.G.M.A.
 ### Local Inference Gateway for Multi-model Assistants
 
-**L.I.G.M.A.** is a modular, high-performance architecture designed for deploying local AI agents across diverse communication platforms. It provides a standardized gateway to interface with Large Language Models (LLMs) via Ollama, ensuring data privacy and architectural flexibility.
+A modular framework for deploying local AI agents on communication platforms. L.I.G.M.A. decouples AI logic from platform interfaces, letting a single locally-hosted brain maintain consistent identity, memory, and capabilities across multiple endpoints — with zero data leaving your machine.
 
 ---
 
-## Overview
+## How It Works
 
-L.I.G.M.A. operates as an agnostic middleware that decouples **AI Logic (Core)** from **Communication Interfaces (Platforms)**. This separation of concerns allows a single, locally-hosted "brain" to maintain consistent state, memory, and personality across multiple endpoints (Discord, Telegram, Web, etc.).
+```
+Discord / Telegram / any platform
+          ↓
+    Platform Layer  (platforms/)
+          ↓
+      AI Engine     (core/engine.py)
+          ↓
+       Ollama       (local inference)
+```
 
-By leveraging local inference, L.I.G.M.A. guarantees that all data processing remains within the user's infrastructure, eliminating third-party API dependencies and associated privacy risks.
-
----
-
-## Technical Architecture
-
-The system is engineered for extensibility and strictly adheres to a modular design pattern:
-
-### Core Module (`core/`)
-The foundational logic of the ecosystem:
-- **`engine.py`**: Fully asynchronous orchestration of LLM interactions via the Ollama API.
-- **`memory.py`**: Context management system featuring short-term history and automated summarization.
-- **`skills/`**: Extensible skill system including:
-    - **`search.py`**: Real-time web search capability (powered by `ddgs`).
-    - **`gifs.py`**: Giphy integration for visual responses.
-- **`personality.py` / `instructions.py`**: Dynamic management of system prompts and behavioral profiles.
-
-### Platform Layer (`platforms/`)
-Concrete implementations for specific interfaces:
-- **`discord/`**: A robust integration using `discord.py`, featuring Slash Command support, asynchronous event handling, and real-time autocompletion.
+The **Core** handles LLM orchestration, memory management, and skills. The **Platform layer** handles protocol-specific I/O. Neither knows about the other's internals.
 
 ---
 
-## Deployment Guide
+## Features
 
-### Prerequisites
-- **Ollama**: Must be installed and running locally.
-- **Python 3.13+**
-- **uv**: Recommended for dependency management.
+- **100% local inference** via [Ollama](https://ollama.com) — no external AI APIs, no data leakage
+- **Persistent memory** with automatic context compression per conversation channel
+- **Skill system** — extensible capabilities the AI can invoke autonomously using tag syntax
+- **Hot-swappable models** — switch Ollama models at runtime without restarting
+- **Dynamic personalities and instructions** — per-deployment behavioral profiles
+- **Full Discord admin capabilities** — the AI can manage roles, channels, permissions, and members
 
-### 1. Repository Initialization
+---
+
+## Skill System
+
+Skills are modular capabilities the AI invokes autonomously by emitting special tags in its responses. Each skill has a two-phase lifecycle: a **reflection phase** (fetch data, re-query the model) and an **action phase** (clean tags, execute side effects).
+
+| Skill | Tag | What it does |
+|-------|-----|--------------|
+| Web Search | `[SEARCH: query]` | DuckDuckGo real-time search |
+| Browser | `[READ: url]` | Fetch and read a web page |
+| GIF | `[GIF: keywords]` | Attach a Giphy GIF to the response |
+| Discord History | `[HISTORY: N]` | Fetch the last N messages with IDs |
+| Discord Search | `[DISCORD_SEARCH: query]` | Full-text search in channel history |
+| Reactions | `[REACT: emoji, msg_id]` | Add an emoji reaction to a message |
+| Replies | `[REPLY: msg_id]` | Reply to a specific past message |
+| Admin | `[LIST_ROLES]`, `[KICK: ...]`, ... | Full Discord server administration |
+
+---
+
+## Discord Commands
+
+Five slash commands. All management goes through `/panel`.
+
+| Command | Access | Description |
+|---------|--------|-------------|
+| `/panel` | Creator | Interactive control panel — model, memory, personality, instructions, skills, stats |
+| `/block` | Creator | Toggle on/off (non-creator messages ignored while blocked) |
+| `/stop` | Creator | Cancel the active generation in the current channel |
+| `/think [prompt]` | Everyone | AI reasons step-by-step; reasoning hidden in a spoiler |
+| `/hidden [prompt]` | Everyone | Send a prompt without it appearing in the channel history |
+
+### Natural Conversation Triggers
+Outside of slash commands, the bot responds when:
+- It is mentioned by `@name`
+- Its name appears in the message
+- The message is a reply to one of its messages
+- The same user sends a follow-up within 45 seconds
+- The user starts typing after the bot responded (auto-extends the follow-up window)
+
+---
+
+## Discord Admin Capabilities
+
+When granted the appropriate server permissions, the AI can autonomously perform server administration. A few examples:
+
+- **Roles**: create, delete, edit (name, color, permissions, hoist), assign/remove from members
+- **Channels**: create (text, voice, forum, stage), delete, edit (topic, slowmode, NSFW), move to category
+- **Permissions**: set channel permission overrides per role or member
+- **Members**: kick, ban, unban, timeout, change nickname
+
+The bot will ask for confirmation before destructive actions.
+
+---
+
+## Installation
+
+See **[INSTALL.md](INSTALL.md)** for the full step-by-step guide.
+
+**Quick start:**
 ```bash
 git clone https://github.com/haksolot/ligma.git
 cd ligma
-```
-
-### 2. Dependency Management
-```bash
 uv sync
-```
-
-### 3. System Configuration
-Create a `.env` file in the root directory and populate it with your credentials:
-```env
-DISCORD_TOKEN=your_token_here
-CREATOR_ID=your_discord_id
-DEFAULT_MODEL=llama3.2:3b
-MEMORY_LIMIT=10
-GIPHY_API_KEY=your_giphy_key_here
-```
-
-### 4. Execution
-```bash
+cp .env.example .env   # fill in your tokens
 uv run run.py
 ```
 
----
-
-## System Capabilities (Discord implementation)
-
-| Command Group | Functionality |
-| --- | --- |
-| `/model` | Dynamic hot-swapping of the active Ollama model with autocompletion. |
-| `/reset` | Volatile memory purge and context summary reset for the current channel. |
-| `/personality` | Real-time management of the agent's behavioral profile. |
-| `/instructions` | Global management of persistent system instructions. |
-| **Search Skill** | Automatic web search via `[SEARCH: query]` syntax (powered by `ddgs`). |
-| **GIF Support** | Automatic GIF injection via `[GIF: query]` syntax (Giphy API). |
+**`.env` reference:**
+```env
+DISCORD_TOKEN=your_discord_bot_token
+CREATOR_ID=your_discord_user_id
+DEFAULT_MODEL=llama3.2:3b
+MEMORY_LIMIT=10
+GIPHY_API_KEY=           # optional
+```
 
 ---
 
-## Privacy & Compliance
+## Project Structure
 
-L.I.G.M.A. is built on the principle of **Zero-Data Leakage**. All inference is performed 100% locally. Users retain absolute control over model selection, memory persistence policies, and the underlying hardware utilization.
+```
+ligma/
+├── core/                   # Platform-agnostic AI logic
+│   ├── engine.py           # LLM orchestration (Ollama)
+│   ├── memory.py           # Per-channel history + compression
+│   ├── personality.py      # Personality management
+│   ├── instructions.py     # Toggleable instruction overlays
+│   └── skills/             # Base skill system + core skills
+├── platforms/
+│   └── discord/            # Discord implementation
+│       ├── bot.py          # Bot init + skill registration
+│       ├── context.py      # Channel context utilities
+│       ├── cogs/           # Slash commands and event handlers
+│       └── skills/         # Discord-specific skills
+├── personalities/          # Personality text files
+├── instructions/           # Instruction text files
+├── config.py               # Environment variable loader
+└── run.py                  # Entry point
+```
 
 ---
-*Architected by Haksolot.*
+
+## Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for branch naming, commit conventions, skill development guide, and AI agent guidelines.
+
+---
+
+*Built by [Haksolot](https://github.com/haksolot).*

@@ -20,3 +20,6 @@ personalities/*
 instructions/*
 # Ignore the state file which tracks active instructions
 instructions/instructions_state.json
+
+# Logs
+logs/

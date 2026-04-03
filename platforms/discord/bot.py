@@ -16,16 +16,21 @@ class LigmaBot(commands.Bot):
         from platforms.discord.skills.history import HistorySkill
         from platforms.discord.skills.reactions import ReactionSkill
         from platforms.discord.skills.replies import ReplySkill
-        
+        from platforms.discord.skills.search_history import SearchHistorySkill
+        from platforms.discord.skills.admin import AdminSkill
+
         discord_skills = [
             GifSkill(),
             SearchSkill(),
             BrowserSkill(),
             HistorySkill(),
             ReactionSkill(),
-            ReplySkill()
+            ReplySkill(),
+            SearchHistorySkill(),
+            AdminSkill(),
         ]
-        
+
+        self.is_blocked = False
         self.ai = AIEngine(skills=discord_skills)
 
     async def update_presence(self):
