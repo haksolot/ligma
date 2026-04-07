@@ -169,24 +169,6 @@ ligma/
 ├── config.py               # Environment variable loader
 └── run.py                  # Entry point
 ```
-ligma/
-├── core/                   # Platform-agnostic AI logic
-│   ├── engine.py           # LLM orchestration (Ollama)
-│   ├── memory.py           # Per-channel history + compression
-│   ├── personality.py      # Personality management
-│   ├── instructions.py     # Toggleable instruction overlays
-│   └── skills/             # Base skill system + core skills
-├── platforms/
-│   └── discord/            # Discord implementation
-│       ├── bot.py          # Bot init + skill registration
-│       ├── context.py      # Channel context utilities
-│       ├── cogs/           # Slash commands and event handlers
-│       └── skills/         # Discord-specific skills
-├── personalities/          # Personality text files
-├── instructions/           # Instruction text files
-├── config.py               # Environment variable loader
-└── run.py                  # Entry point
-```
 
 ---
 
