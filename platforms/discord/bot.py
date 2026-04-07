@@ -4,13 +4,14 @@ from discord.ext import commands, tasks
 from core.engine import AIEngine
 from config import DISCORD_TOKEN
 
+
 class LigmaBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
         super().__init__(command_prefix="!", intents=intents)
-        
+
         # Inject Discord-specific skills
         from core.skills import GifSkill, SearchSkill, BrowserSkill
         from platforms.discord.skills.history import HistorySkill
@@ -40,7 +41,8 @@ class LigmaBot(commands.Bot):
             personality = self.ai.personality.current_name
             status_text = f"{model} | {personality}"
             await self.change_presence(activity=discord.Game(name=status_text))
-        except: pass
+        except:
+            pass
 
     @tasks.loop(minutes=5)
     async def refresh_model_cache_task(self):
@@ -58,16 +60,22 @@ class LigmaBot(commands.Bot):
         # 3. Load cogs
         await self.load_extension("platforms.discord.cogs.chat")
         await self.load_extension("platforms.discord.cogs.ai")
-        
+
         # 4. Global error handler for the command tree
         @self.tree.error
-        async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        async def on_app_command_error(
+            interaction: discord.Interaction,
+            error: discord.app_commands.AppCommandError,
+        ):
             # Handle interaction timeouts (404/10062) gracefully
             if isinstance(error, discord.app_commands.errors.CommandInvokeError):
                 real_error = error.original
-                if isinstance(real_error, discord.NotFound) and real_error.code == 10062:
+                if (
+                    isinstance(real_error, discord.NotFound)
+                    and real_error.code == 10062
+                ):
                     return
-            
+
             error_str = str(error)
             if "10062" in error_str or "Unknown interaction" in error_str:
                 return
@@ -75,10 +83,15 @@ class LigmaBot(commands.Bot):
             print(f"[Bot] Tree Error: {error}")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"System error: {error}", ephemeral=True)
+                    await interaction.response.send_message(
+                        f"System error: {error}", ephemeral=True
+                    )
                 else:
-                    await interaction.followup.send(f"System error: {error}", ephemeral=True)
-            except: pass
+                    await interaction.followup.send(
+                        f"System error: {error}", ephemeral=True
+                    )
+            except:
+                pass
 
         # 5. Sync slash commands
         await self.tree.sync()
@@ -86,11 +99,16 @@ class LigmaBot(commands.Bot):
     async def on_ready(self):
         # Final status update
         await self.update_presence()
-        
+
         print(f"Logged in as {self.user}!")
-        print(f"Ollama models loaded: {', '.join(self.ai.get_cached_models())}")
+        provider_name = self.ai.get_provider_name()
+        models = self.ai.get_cached_models()
+        print(
+            f"{provider_name.capitalize()} models loaded: {', '.join(m for m in models if m)}"
+        )
         print(f"Active model: {self.ai.current_model}")
         print("L.I.G.M.A. is ready!")
+
 
 def run_bot():
     bot = LigmaBot()
