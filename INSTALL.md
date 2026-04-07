@@ -85,3 +85,44 @@ uv run run.py
 | Mettre à jour les dépendances | `uv sync` |
 | Ajouter un nouveau modèle | `ollama pull <nom_du_modele>` |
 | Lister les modèles installés | `ollama list` |
+
+---
+
+## Optionnel : Utiliser OpenRouter au lieu d'Ollama
+
+L.I.G.M.A. peut utiliser **OpenRouter** pour l'inférence cloud au lieu d'Ollama local.
+
+### Pourquoi OpenRouter ?
+- Accès à des modèles puissants (GPT-4, Claude, Gemini...)
+- Pas besoin de GPU local
+- Fonctionne même si Ollama n'est pas installé
+
+### Configuration
+
+1. **Obtenez une clé API** sur [openrouter.ai/keys](https://openrouter.ai/keys)
+
+2. **Modifiez votre `.env`** :
+   ```env
+   LLM_PROVIDER=openrouter
+   OPENROUTER_API_KEY=sk-or-v1-...
+   DEFAULT_MODEL=openai/gpt-4o
+   ```
+
+3. **Lancez le bot** — pas besoin d'Ollama ni de modèle local.
+
+### Modèles recommandés
+
+| Modèle | Description |
+| --- | --- |
+| `openai/gpt-4o` | GPT-4 Omni — excellent équilibre性能 |
+| `anthropic/claude-3.5-sonnet` | Claude — très bonne raison |
+| `google/gemini-2.0-flash` | Gemini — rapide et gratuit |
+
+Tous les modèles disponibles sur [openrouter.ai/models](https://openrouter.ai/models).
+
+### Changer de provider à la volée
+
+En runtime (commandes slash, creator only) :
+- `/provider status` — voir le provider actuel
+- `/provider ollama` — repasser sur Ollama local
+- `/provider openrouter` — repasser sur OpenRouter

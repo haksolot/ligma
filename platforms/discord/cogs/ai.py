@@ -1,11 +1,12 @@
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
-from config import CREATOR_ID
+from config import CREATOR_ID, LLM_PROVIDER, DEFAULT_MODEL
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MODALS
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CreateModal(ui.Modal):
     def __init__(self, title, callback_func):
@@ -16,25 +17,28 @@ class CreateModal(ui.Modal):
             label="Name",
             placeholder="Enter a unique name...",
             min_length=2,
-            max_length=50
+            max_length=50,
         )
         self.content_input = ui.TextInput(
             label="Content / Prompt",
             style=discord.TextStyle.paragraph,
             placeholder="Enter the detailed content here...",
             min_length=5,
-            max_length=2000
+            max_length=2000,
         )
         self.add_item(self.name_input)
         self.add_item(self.content_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.callback_func(interaction, self.name_input.value, self.content_input.value)
+        await self.callback_func(
+            interaction, self.name_input.value, self.content_input.value
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUB-VIEWS (accessed from PanelView)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class BackButton(ui.Button):
     def __init__(self, panel_view_factory):
@@ -54,7 +58,9 @@ class ModelView(ui.View):
         self.add_item(BackButton(make_panel))
 
     @ui.button(label="Change Model", style=discord.ButtonStyle.primary)
-    async def change_model_btn(self, interaction: discord.Interaction, button: ui.Button):
+    async def change_model_btn(
+        self, interaction: discord.Interaction, button: ui.Button
+    ):
         await interaction.response.defer(ephemeral=False)
         models = self.bot.ai.get_cached_models()
         if not models:
@@ -63,9 +69,7 @@ class ModelView(ui.View):
 
         options = [
             discord.SelectOption(
-                label=m[:100],
-                value=m,
-                default=(m == self.bot.ai.current_model)
+                label=m[:100], value=m, default=(m == self.bot.ai.current_model)
             )
             for m in models[:25]
         ]
@@ -86,7 +90,7 @@ class ModelView(ui.View):
         embed = discord.Embed(
             title="🤖 Change Model",
             description=f"Current: `{self.bot.ai.current_model}`",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
         await interaction.edit_original_response(embed=embed, view=v)
 
@@ -106,15 +110,19 @@ class PersonalityView(ui.View):
         embed = discord.Embed(
             title=f"🎭 Personality: {name}",
             description=f"```{content[:2000]}```",
-            color=discord.Color.purple()
+            color=discord.Color.purple(),
         )
         await interaction.edit_original_response(embed=embed, view=self)
 
     @ui.button(label="Switch", style=discord.ButtonStyle.secondary)
-    async def switch_personality(self, interaction: discord.Interaction, button: ui.Button):
+    async def switch_personality(
+        self, interaction: discord.Interaction, button: ui.Button
+    ):
         await interaction.response.defer()
         options = [
-            discord.SelectOption(label=p, value=p, default=(p == self.bot.ai.personality.current_name))
+            discord.SelectOption(
+                label=p, value=p, default=(p == self.bot.ai.personality.current_name)
+            )
             for p in self.bot.ai.personality.list_all()
         ][:25]
         select = ui.Select(placeholder="Choose a personality...", options=options)
@@ -125,13 +133,19 @@ class PersonalityView(ui.View):
             self.bot.ai.personality.load(name)
             self.bot.ai.memory.clear(str(inter.channel_id))
             await self.bot.update_presence()
-            embed = discord.Embed(title="🎭 Personality", description=f"Switched to **{name}**.", color=discord.Color.purple())
+            embed = discord.Embed(
+                title="🎭 Personality",
+                description=f"Switched to **{name}**.",
+                color=discord.Color.purple(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
         select.callback = select_cb
         v = ui.View()
         v.add_item(select)
-        embed = discord.Embed(title="🎭 Switch Personality", color=discord.Color.purple())
+        embed = discord.Embed(
+            title="🎭 Switch Personality", color=discord.Color.purple()
+        )
         await interaction.edit_original_response(embed=embed, view=v)
 
     @ui.button(label="Create / Update", style=discord.ButtonStyle.success)
@@ -140,22 +154,35 @@ class PersonalityView(ui.View):
             await inter.response.defer()
             self.bot.ai.personality.save(name, content)
             self.bot.ai.personality.refresh_cache()
-            embed = discord.Embed(title="🎭 Personality", description=f"**{name}** saved.", color=discord.Color.purple())
+            embed = discord.Embed(
+                title="🎭 Personality",
+                description=f"**{name}** saved.",
+                color=discord.Color.purple(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
-        await interaction.response.send_modal(CreateModal("Create / Update Personality", callback))
+        await interaction.response.send_modal(
+            CreateModal("Create / Update Personality", callback)
+        )
 
     @ui.button(label="Delete", style=discord.ButtonStyle.danger)
-    async def delete_personality(self, interaction: discord.Interaction, button: ui.Button):
+    async def delete_personality(
+        self, interaction: discord.Interaction, button: ui.Button
+    ):
         await interaction.response.defer()
         options = [
             discord.SelectOption(label=p, value=p)
-            for p in self.bot.ai.personality.list_all() if p != "default"
+            for p in self.bot.ai.personality.list_all()
+            if p != "default"
         ][:25]
         if not options:
             await interaction.edit_original_response(
-                embed=discord.Embed(title="🎭 Personality", description="No custom personalities to delete.", color=discord.Color.red()),
-                view=self
+                embed=discord.Embed(
+                    title="🎭 Personality",
+                    description="No custom personalities to delete.",
+                    color=discord.Color.red(),
+                ),
+                view=self,
             )
             return
         select = ui.Select(placeholder="Select to delete...", options=options)
@@ -165,15 +192,21 @@ class PersonalityView(ui.View):
             name = select.values[0]
             self.bot.ai.personality.delete(name)
             self.bot.ai.personality.refresh_cache()
-            embed = discord.Embed(title="🎭 Personality", description=f"**{name}** deleted.", color=discord.Color.red())
+            embed = discord.Embed(
+                title="🎭 Personality",
+                description=f"**{name}** deleted.",
+                color=discord.Color.red(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
         select.callback = delete_cb
         v = ui.View()
         v.add_item(select)
         await interaction.edit_original_response(
-            embed=discord.Embed(title="🎭 Delete Personality", color=discord.Color.red()),
-            view=v
+            embed=discord.Embed(
+                title="🎭 Delete Personality", color=discord.Color.red()
+            ),
+            view=v,
         )
 
 
@@ -190,13 +223,19 @@ class InstructionView(ui.View):
         instructions = self.bot.ai.instructions.list_all()
         if not instructions:
             await interaction.edit_original_response(
-                embed=discord.Embed(title="📋 Instructions", description="No instructions found.", color=discord.Color.orange()),
-                view=self
+                embed=discord.Embed(
+                    title="📋 Instructions",
+                    description="No instructions found.",
+                    color=discord.Color.orange(),
+                ),
+                view=self,
             )
             return
 
         options = [
-            discord.SelectOption(label=name, value=name, description="Active" if active else "Inactive")
+            discord.SelectOption(
+                label=name, value=name, description="Active" if active else "Inactive"
+            )
             for name, active in instructions
         ][:25]
         select = ui.Select(placeholder="Toggle an instruction...", options=options)
@@ -207,14 +246,24 @@ class InstructionView(ui.View):
             current_status = next(a for n, a in instructions if n == name)
             self.bot.ai.instructions.toggle(name, not current_status)
             status = "activated" if not current_status else "deactivated"
-            embed = discord.Embed(title="📋 Instructions", description=f"**{name}** {status}.", color=discord.Color.orange())
+            embed = discord.Embed(
+                title="📋 Instructions",
+                description=f"**{name}** {status}.",
+                color=discord.Color.orange(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
         select.callback = toggle_cb
-        status_list = "\n".join([f"{'🟢' if a else '🔴'} **{n}**" for n, a in instructions])
+        status_list = "\n".join(
+            [f"{'🟢' if a else '🔴'} **{n}**" for n, a in instructions]
+        )
         v = ui.View()
         v.add_item(select)
-        embed = discord.Embed(title="📋 Instructions", description=status_list + "\n\nSelect one to toggle:", color=discord.Color.orange())
+        embed = discord.Embed(
+            title="📋 Instructions",
+            description=status_list + "\n\nSelect one to toggle:",
+            color=discord.Color.orange(),
+        )
         await interaction.edit_original_response(embed=embed, view=v)
 
     @ui.button(label="Create / Update", style=discord.ButtonStyle.success)
@@ -223,20 +272,32 @@ class InstructionView(ui.View):
             await inter.response.defer()
             self.bot.ai.instructions.create_or_update(name, content)
             self.bot.ai.instructions.refresh_cache()
-            embed = discord.Embed(title="📋 Instructions", description=f"**{name}** saved.", color=discord.Color.orange())
+            embed = discord.Embed(
+                title="📋 Instructions",
+                description=f"**{name}** saved.",
+                color=discord.Color.orange(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
-        await interaction.response.send_modal(CreateModal("Create / Update Instruction", callback))
+        await interaction.response.send_modal(
+            CreateModal("Create / Update Instruction", callback)
+        )
 
     @ui.button(label="Delete", style=discord.ButtonStyle.danger)
     async def delete_instr(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
         instructions = self.bot.ai.instructions.list_all()
-        options = [discord.SelectOption(label=name, value=name) for name, _ in instructions][:25]
+        options = [
+            discord.SelectOption(label=name, value=name) for name, _ in instructions
+        ][:25]
         if not options:
             await interaction.edit_original_response(
-                embed=discord.Embed(title="📋 Instructions", description="No instructions to delete.", color=discord.Color.red()),
-                view=self
+                embed=discord.Embed(
+                    title="📋 Instructions",
+                    description="No instructions to delete.",
+                    color=discord.Color.red(),
+                ),
+                view=self,
             )
             return
         select = ui.Select(placeholder="Select to delete...", options=options)
@@ -246,15 +307,21 @@ class InstructionView(ui.View):
             name = select.values[0]
             self.bot.ai.instructions.delete(name)
             self.bot.ai.instructions.refresh_cache()
-            embed = discord.Embed(title="📋 Instructions", description=f"**{name}** deleted.", color=discord.Color.red())
+            embed = discord.Embed(
+                title="📋 Instructions",
+                description=f"**{name}** deleted.",
+                color=discord.Color.red(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
         select.callback = delete_cb
         v = ui.View()
         v.add_item(select)
         await interaction.edit_original_response(
-            embed=discord.Embed(title="📋 Delete Instruction", color=discord.Color.red()),
-            view=v
+            embed=discord.Embed(
+                title="📋 Delete Instruction", color=discord.Color.red()
+            ),
+            view=v,
         )
 
 
@@ -271,8 +338,12 @@ class SkillView(ui.View):
         skills = self.bot.ai.skills.list_all()
         if not skills:
             await interaction.edit_original_response(
-                embed=discord.Embed(title="🔧 Skills", description="No skills loaded.", color=discord.Color.teal()),
-                view=self
+                embed=discord.Embed(
+                    title="🔧 Skills",
+                    description="No skills loaded.",
+                    color=discord.Color.teal(),
+                ),
+                view=self,
             )
             return
 
@@ -280,7 +351,7 @@ class SkillView(ui.View):
             discord.SelectOption(
                 label=name,
                 value=name,
-                description=f"{'Active' if active else 'Inactive'} — {desc[:50]}"
+                description=f"{'Active' if active else 'Inactive'} — {desc[:50]}",
             )
             for name, active, desc in skills
         ][:25]
@@ -292,14 +363,24 @@ class SkillView(ui.View):
             current_status = next(a for n, a, _ in skills if n == name)
             self.bot.ai.skills.toggle_skill(name, not current_status)
             status = "activated" if not current_status else "deactivated"
-            embed = discord.Embed(title="🔧 Skills", description=f"**{name}** {status}.", color=discord.Color.teal())
+            embed = discord.Embed(
+                title="🔧 Skills",
+                description=f"**{name}** {status}.",
+                color=discord.Color.teal(),
+            )
             await inter.edit_original_response(embed=embed, view=self)
 
         select.callback = toggle_cb
-        status_list = "\n".join([f"{'🟢' if a else '🔴'} **{n}** — {d}" for n, a, d in skills])
+        status_list = "\n".join(
+            [f"{'🟢' if a else '🔴'} **{n}** — {d}" for n, a, d in skills]
+        )
         v = ui.View()
         v.add_item(select)
-        embed = discord.Embed(title="🔧 Skills", description=status_list + "\n\nSelect one to toggle:", color=discord.Color.teal())
+        embed = discord.Embed(
+            title="🔧 Skills",
+            description=status_list + "\n\nSelect one to toggle:",
+            color=discord.Color.teal(),
+        )
         await interaction.edit_original_response(embed=embed, view=v)
 
 
@@ -324,7 +405,9 @@ class StatsView(ui.View):
         model_info = await self.bot.ai.get_model_info()
         metrics = self.bot.ai.last_metrics
 
-        total_chars = sys_stats["total_persistent_chars"] + mem_stats["total_volatile_chars"]
+        total_chars = (
+            sys_stats["total_persistent_chars"] + mem_stats["total_volatile_chars"]
+        )
         est_tokens = total_chars // 4
         capacity = model_info["context_limit"]
         percent = (est_tokens / capacity) * 100
@@ -332,7 +415,7 @@ class StatsView(ui.View):
         embed = discord.Embed(
             title="📊 Status & Performance",
             description=f"Model: `{model_info['model']}`",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
         embed.add_field(
             name="Memory",
@@ -342,7 +425,7 @@ class StatsView(ui.View):
                 f"History: {mem_stats['history_count']} messages\n"
                 f"Usage: ~{est_tokens}/{capacity} tokens ({percent:.1f}%)"
             ),
-            inline=True
+            inline=True,
         )
         if metrics:
             total_sec = (metrics.get("total_duration") or 0) / 1e9
@@ -356,7 +439,7 @@ class StatsView(ui.View):
                     f"Tokens: {eval_count}\n"
                     f"Total time: {total_sec:.2f}s"
                 ),
-                inline=True
+                inline=True,
             )
         return embed
 
@@ -364,6 +447,7 @@ class StatsView(ui.View):
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN PANEL VIEW
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class PanelView(ui.View):
     def __init__(self, bot, channel_id):
@@ -384,7 +468,7 @@ class PanelView(ui.View):
         embed = discord.Embed(
             title="🤖 Model",
             description=f"Current: `{self.bot.ai.current_model}`\nSelect a model to switch:",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
         await interaction.edit_original_response(embed=embed, view=view)
 
@@ -397,18 +481,22 @@ class PanelView(ui.View):
         await interaction.edit_original_response(embed=embed, view=view)
 
     @ui.button(label="🎭 Personality", style=discord.ButtonStyle.secondary, row=0)
-    async def personality_btn(self, interaction: discord.Interaction, button: ui.Button):
+    async def personality_btn(
+        self, interaction: discord.Interaction, button: ui.Button
+    ):
         await interaction.response.defer()
         view = PersonalityView(self.bot, self._make_panel)
         embed = discord.Embed(
             title="🎭 Personality Management",
             description=f"Current: **{self.bot.ai.personality.current_name}**",
-            color=discord.Color.purple()
+            color=discord.Color.purple(),
         )
         await interaction.edit_original_response(embed=embed, view=view)
 
     @ui.button(label="📋 Instructions", style=discord.ButtonStyle.secondary, row=1)
-    async def instructions_btn(self, interaction: discord.Interaction, button: ui.Button):
+    async def instructions_btn(
+        self, interaction: discord.Interaction, button: ui.Button
+    ):
         await interaction.response.defer()
         view = InstructionView(self.bot, self._make_panel)
         instructions = self.bot.ai.instructions.list_all()
@@ -416,7 +504,7 @@ class PanelView(ui.View):
         embed = discord.Embed(
             title="📋 Instructions",
             description=f"{active_count}/{len(instructions)} active",
-            color=discord.Color.orange()
+            color=discord.Color.orange(),
         )
         await interaction.edit_original_response(embed=embed, view=view)
 
@@ -429,7 +517,7 @@ class PanelView(ui.View):
         embed = discord.Embed(
             title="🔧 Skills",
             description=f"{active_count}/{len(skills)} active",
-            color=discord.Color.teal()
+            color=discord.Color.teal(),
         )
         await interaction.edit_original_response(embed=embed, view=view)
 
@@ -453,7 +541,9 @@ async def _build_panel_embed(bot, channel_id: int) -> discord.Embed:
     except Exception:
         capacity = 2048
 
-    total_chars = sys_stats["total_persistent_chars"] + mem_stats["total_volatile_chars"]
+    total_chars = (
+        sys_stats["total_persistent_chars"] + mem_stats["total_volatile_chars"]
+    )
     est_tokens = total_chars // 4
     percent = (est_tokens / capacity) * 100
 
@@ -461,24 +551,40 @@ async def _build_panel_embed(bot, channel_id: int) -> discord.Embed:
     active_skills = sum(1 for _, a, _ in skills if a)
     instructions = bot.ai.instructions.list_all()
     active_instr = sum(1 for _, a in instructions if a)
-    is_blocked = getattr(bot, 'is_blocked', False)
+    is_blocked = getattr(bot, "is_blocked", False)
 
     embed = discord.Embed(
         title="⚙️ L.I.G.M.A. Control Panel",
-        color=discord.Color.red() if is_blocked else discord.Color.green()
+        color=discord.Color.red() if is_blocked else discord.Color.green(),
+    )
+    embed.add_field(
+        name="Provider", value=f"`{bot.ai.get_provider_name()}`", inline=True
     )
     embed.add_field(name="Model", value=f"`{bot.ai.current_model}`", inline=True)
-    embed.add_field(name="Personality", value=f"`{sys_stats['personality_name']}`", inline=True)
-    embed.add_field(name="Status", value="🔴 BLOCKED" if is_blocked else "🟢 ONLINE", inline=True)
-    embed.add_field(name="Memory Usage", value=f"~{percent:.1f}% ({est_tokens} tokens)", inline=True)
-    embed.add_field(name="Skills", value=f"{active_skills}/{len(skills)} active", inline=True)
-    embed.add_field(name="Instructions", value=f"{active_instr}/{len(instructions)} active", inline=True)
+    embed.add_field(
+        name="Personality", value=f"`{sys_stats['personality_name']}`", inline=True
+    )
+    embed.add_field(
+        name="Status", value="🔴 BLOCKED" if is_blocked else "🟢 ONLINE", inline=True
+    )
+    embed.add_field(
+        name="Memory Usage", value=f"~{percent:.1f}% ({est_tokens} tokens)", inline=True
+    )
+    embed.add_field(
+        name="Skills", value=f"{active_skills}/{len(skills)} active", inline=True
+    )
+    embed.add_field(
+        name="Instructions",
+        value=f"{active_instr}/{len(instructions)} active",
+        inline=True,
+    )
     return embed
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COG
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class AICog(commands.Cog):
     def __init__(self, bot):
@@ -487,7 +593,9 @@ class AICog(commands.Cog):
     def is_creator(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == CREATOR_ID
 
-    @app_commands.command(name="panel", description="Open the L.I.G.M.A. control panel (Creator Only).")
+    @app_commands.command(
+        name="panel", description="Open the L.I.G.M.A. control panel (Creator Only)."
+    )
     async def panel(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not self.is_creator(interaction):
@@ -497,7 +605,9 @@ class AICog(commands.Cog):
         embed = await _build_panel_embed(self.bot, interaction.channel_id)
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-    @app_commands.command(name="block", description="Toggle message handling on/off (Creator Only).")
+    @app_commands.command(
+        name="block", description="Toggle message handling on/off (Creator Only)."
+    )
     async def toggle_block(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not self.is_creator(interaction):
@@ -506,9 +616,14 @@ class AICog(commands.Cog):
         self.bot.is_blocked = not self.bot.is_blocked
         state = "BLOCKED" if self.bot.is_blocked else "ONLINE"
         emoji = "🔴" if self.bot.is_blocked else "🟢"
-        await interaction.followup.send(f"{emoji} Status is now **{state}**.", ephemeral=True)
+        await interaction.followup.send(
+            f"{emoji} Status is now **{state}**.", ephemeral=True
+        )
 
-    @app_commands.command(name="stop", description="Cancel the active AI generation in this channel (Creator Only).")
+    @app_commands.command(
+        name="stop",
+        description="Cancel the active AI generation in this channel (Creator Only).",
+    )
     async def stop_generation(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not self.is_creator(interaction):
@@ -522,7 +637,55 @@ class AICog(commands.Cog):
                 task.cancel()
                 await interaction.followup.send("Generation cancelled.", ephemeral=True)
                 return
-        await interaction.followup.send("No active generation in this channel.", ephemeral=True)
+        await interaction.followup.send(
+            "No active generation in this channel.", ephemeral=True
+        )
+
+    @app_commands.command(
+        name="provider",
+        description="Switch LLM provider or view current provider (Creator Only).",
+    )
+    @app_commands.describe(
+        action="Action to perform: 'status' to see current, 'ollama' or 'openrouter' to switch"
+    )
+    async def provider_command(
+        self, interaction: discord.Interaction, action: str = "status"
+    ):
+        await interaction.response.defer(ephemeral=True)
+        if not self.is_creator(interaction):
+            await interaction.followup.send("Unauthorized.", ephemeral=True)
+            return
+
+        if action == "status":
+            provider_name = self.bot.ai.get_provider_name()
+            model = self.bot.ai.current_model
+            await interaction.followup.send(
+                f"**Current Provider:** `{provider_name}`\n**Model:** `{model}`",
+                ephemeral=True,
+            )
+            return
+
+        new_model = None
+        if action == "ollama":
+            new_model = "llama3.2:3b"
+        elif action == "openrouter":
+            new_model = "openai/gpt-4o"
+        else:
+            await interaction.followup.send(
+                f"Unknown provider: `{action}`. Use `ollama` or `openrouter`.",
+                ephemeral=True,
+            )
+            return
+
+        success, msg = self.bot.ai.switch_provider(action, new_model)
+        if success:
+            self.bot.ai.memory.clear(str(interaction.channel_id))
+            await self.bot.update_presence()
+            await interaction.followup.send(
+                f"✅ {msg} | Model: `{new_model}`", ephemeral=True
+            )
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
 
 async def setup(bot):
